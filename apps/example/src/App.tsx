@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
 
 // ── App registry ────────────────────────────────────────────
@@ -43,116 +43,168 @@ function Home() {
   )
 }
 
-// ── Timer ─────────────────────────────────────────────────────
-const DEFAULT = 5 * 60
+// ── Wheel picker ──────────────────────────────────────────────
+const ITEM_H  = 44
+const WHEEL_H = ITEM_H * 5       // 5 items visible
+const PAD     = (WHEEL_H - ITEM_H) / 2  // top/bottom padding so first/last items can centre
 
+const H_ITEMS = Array.from({ length: 24 }, (_, i) => i)
+const M_ITEMS = Array.from({ length: 60 }, (_, i) => i)
+const S_ITEMS = Array.from({ length: 60 }, (_, i) => i)
+
+function Wheel({ items, value, onChange, label }: {
+  items: number[]
+  value: number
+  onChange: (v: number) => void
+  label: string
+}) {
+  const ref  = useRef<HTMLDivElement>(null)
+  const busy = useRef(false)
+  const tid  = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useLayoutEffect(() => {
+    if (ref.current) ref.current.scrollTop = value * ITEM_H
+  }, [])
+
+  useEffect(() => {
+    if (ref.current && !busy.current)
+      ref.current.scrollTop = value * ITEM_H
+  }, [value])
+
+  const onScroll = () => {
+    busy.current = true
+    if (tid.current) clearTimeout(tid.current)
+    if (ref.current) {
+      const idx = Math.round(ref.current.scrollTop / ITEM_H)
+      onChange(items[Math.max(0, Math.min(idx, items.length - 1))])
+    }
+    tid.current = setTimeout(() => { busy.current = false }, 200)
+  }
+
+  return (
+    <div className="wheel-col">
+      <div className="wheel-outer">
+        <div className="wheel-scroller" ref={ref} onScroll={onScroll}>
+          <div style={{ height: PAD }} />
+          {items.map(n => (
+            <div key={n} className="wheel-item">
+              {String(n).padStart(2, '0')}
+            </div>
+          ))}
+          <div style={{ height: PAD }} />
+        </div>
+        <div className="wheel-fade" />
+        <div className="wheel-selector" />
+      </div>
+      <span className="wheel-label">{label}</span>
+    </div>
+  )
+}
+
+// ── Timer ─────────────────────────────────────────────────────
 function Timer() {
-  const [total,    setTotal]   = useState(DEFAULT)
-  const [seconds,  setSeconds] = useState(DEFAULT)
-  const [running,  setRunning] = useState(false)
-  const [editing,  setEditing] = useState(false)
-  const [editVal,  setEditVal] = useState('')
+  const [hrs,  setHrs]  = useState(0)
+  const [mins, setMins] = useState(5)
+  const [secs, setSecs] = useState(0)
+
+  const [started,   setStarted]   = useState(false)
+  const [running,   setRunning]   = useState(false)
+  const [remaining, setRemaining] = useState(0)
+  const [total,     setTotal]     = useState(0)
+
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (running) {
       intervalRef.current = setInterval(() => {
-        setSeconds(s => {
-          if (s <= 1) { clearInterval(intervalRef.current!); setRunning(false); return 0 }
-          return s - 1
+        setRemaining(r => {
+          if (r <= 1) { clearInterval(intervalRef.current!); setRunning(false); return 0 }
+          return r - 1
         })
       }, 1000)
     }
     return () => clearInterval(intervalRef.current!)
   }, [running])
 
-  const adjust = (mins: number) => {
-    const next = Math.max(1, Math.min(99 * 60, total + mins * 60))
-    setTotal(next)
-    setSeconds(next)
+  const start = () => {
+    const t = hrs * 3600 + mins * 60 + secs
+    if (t === 0) return
+    setTotal(t)
+    setRemaining(t)
+    setStarted(true)
+    setRunning(true)
   }
 
   const reset = () => {
     clearInterval(intervalRef.current!)
     setRunning(false)
-    setSeconds(total)
+    setStarted(false)
+    setRemaining(0)
   }
 
-  const startEdit = () => {
-    if (running) return
-    setEditVal(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`)
-    setEditing(true)
-  }
+  const done     = started && remaining === 0
+  const fraction = total > 0 ? remaining / total : 1
+  const r        = 88
+  const circ     = 2 * Math.PI * r
+  const offset   = circ * (1 - fraction)
 
-  const commitEdit = () => {
-    setEditing(false)
-    const parts = editVal.split(':')
-    const mins  = parseInt(parts[0]) || 0
-    const secs  = parseInt(parts[1]) || 0
-    const next  = Math.max(1, Math.min(99 * 60, mins * 60 + secs))
-    setTotal(next)
-    setSeconds(next)
-  }
-
-  const done   = seconds === 0
-  const r      = 88
-  const circ   = 2 * Math.PI * r
-  const offset = circ * (seconds / total)
-  const mm     = String(Math.floor(seconds / 60)).padStart(2, '0')
-  const ss     = String(seconds % 60).padStart(2, '0')
+  const rh = Math.floor(remaining / 3600)
+  const rm = Math.floor((remaining % 3600) / 60)
+  const rs = remaining % 60
+  const timeStr = rh > 0
+    ? `${rh}:${String(rm).padStart(2,'0')}:${String(rs).padStart(2,'0')}`
+    : `${rm}:${String(rs).padStart(2,'0')}`
 
   return (
     <AppPage title="Timer">
       <div className="card">
-        <div className="timer-ring-wrap">
-          <div className="timer-ring">
-            <svg width="200" height="200" viewBox="0 0 200 200">
-              <circle className="ring-track" cx="100" cy="100" r={r} />
-              <circle
-                className="ring-progress"
-                cx="100" cy="100" r={r}
-                stroke={done ? '#5a9e6a' : '#e8705a'}
-                strokeDasharray={circ}
-                strokeDashoffset={offset}
-              />
-            </svg>
-            <div className="ring-text">
-              {editing ? (
-                <input
-                  className="ring-time-input"
-                  value={editVal}
-                  onChange={e => setEditVal(e.target.value)}
-                  onBlur={commitEdit}
-                  onKeyDown={e => e.key === 'Enter' && commitEdit()}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className={`ring-time${!running ? ' ring-time-editable' : ''}`}
-                  onClick={startEdit}
-                >
-                  {mm}:{ss}
-                </span>
+        {!started ? (
+          <>
+            <div className="wheels-row">
+              <Wheel items={H_ITEMS} value={hrs}  onChange={setHrs}  label="hours" />
+              <Wheel items={M_ITEMS} value={mins} onChange={setMins} label="min" />
+              <Wheel items={S_ITEMS} value={secs} onChange={setSecs} label="sec" />
+            </div>
+            <div className="timer-controls">
+              <button
+                className="btn btn-primary"
+                onClick={start}
+                disabled={hrs + mins + secs === 0}
+              >
+                Start
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="timer-ring-wrap">
+              <div className="timer-ring">
+                <svg width="200" height="200" viewBox="0 0 200 200">
+                  <circle className="ring-track" cx="100" cy="100" r={r} />
+                  <circle
+                    className="ring-progress"
+                    cx="100" cy="100" r={r}
+                    stroke={done ? '#5a9e6a' : '#e8705a'}
+                    strokeDasharray={circ}
+                    strokeDashoffset={offset}
+                  />
+                </svg>
+                <div className="ring-text">
+                  <span className="ring-time">{timeStr}</span>
+                  {done && <span className="ring-done">done</span>}
+                </div>
+              </div>
+            </div>
+            <div className="timer-controls">
+              <button className="btn" onClick={reset}>Reset</button>
+              {!done && (
+                <button className="btn btn-primary" onClick={() => setRunning(r => !r)}>
+                  {running ? 'Pause' : 'Resume'}
+                </button>
               )}
             </div>
-          </div>
-        </div>
-
-        {!running && !editing && (
-          <div className="timer-adjust">
-            <button className="btn" onClick={() => adjust(-5)}>−5m</button>
-            <button className="btn" onClick={() => adjust(-1)}>−1m</button>
-            <button className="btn" onClick={() => adjust(1)}>+1m</button>
-            <button className="btn" onClick={() => adjust(5)}>+5m</button>
-          </div>
+          </>
         )}
-
-        <div className="timer-controls">
-          <button className="btn" onClick={reset}>Reset</button>
-          <button className="btn btn-primary" onClick={() => { if (done) { setSeconds(total); setRunning(true) } else setRunning(r => !r) }}>
-            {done ? 'Restart' : running ? 'Pause' : 'Start'}
-          </button>
-        </div>
       </div>
     </AppPage>
   )
