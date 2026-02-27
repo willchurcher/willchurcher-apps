@@ -67,7 +67,7 @@ function Timer() {
   }, [running])
 
   const adjust = (mins: number) => {
-    const next = Math.max(60, Math.min(99 * 60, total + mins * 60))
+    const next = Math.max(1, Math.min(99 * 60, total + mins * 60))
     setTotal(next)
     setSeconds(next)
   }
@@ -89,7 +89,7 @@ function Timer() {
     const parts = editVal.split(':')
     const mins  = parseInt(parts[0]) || 0
     const secs  = parseInt(parts[1]) || 0
-    const next  = Math.max(60, Math.min(99 * 60, mins * 60 + secs))
+    const next  = Math.max(1, Math.min(99 * 60, mins * 60 + secs))
     setTotal(next)
     setSeconds(next)
   }
