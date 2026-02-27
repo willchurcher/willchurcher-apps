@@ -1,0 +1,359 @@
+/* ── Tokens ─────────────────────────────────────────────── */
+:root {
+  --bg:          #f2ece0;
+  --bg2:         #e8dfc9;
+  --surface:     #ede5d5;
+  --surface2:    #e3d9c5;
+  --border:      rgba(110, 85, 50, 0.13);
+  --text:        #2a1f12;
+  --text2:       #6b5540;
+  --muted:       #9e856a;
+  --accent:      #7a5c38;
+  --accent-fg:   #fff8ee;
+  --shadow-sm:   0 2px 6px  rgba(70, 50, 20, 0.10);
+  --shadow-md:   0 4px 16px rgba(70, 50, 20, 0.14);
+  --shadow-lg:   0 8px 32px rgba(70, 50, 20, 0.18);
+  --radius-icon: 18px;
+  --radius-card: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:          #131009;
+    --bg2:         #1c1910;
+    --surface:     #252117;
+    --surface2:    #2e291c;
+    --border:      rgba(200, 168, 100, 0.09);
+    --text:        #ede3ca;
+    --text2:       #b0946e;
+    --muted:       #6a5540;
+    --accent:      #c9a464;
+    --accent-fg:   #1a1408;
+    --shadow-sm:   0 2px 6px  rgba(0,0,0,0.35);
+    --shadow-md:   0 4px 16px rgba(0,0,0,0.50);
+    --shadow-lg:   0 8px 32px rgba(0,0,0,0.65);
+  }
+}
+
+/* ── Reset ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── Home screen ────────────────────────────────────────── */
+.home {
+  min-height: 100dvh;
+  padding: 3.5rem 1.5rem 4rem;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 0%, var(--bg2) 0%, transparent 70%),
+    var(--bg);
+}
+
+.home-title {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2.5rem;
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  row-gap: 1.8rem;
+  column-gap: 0.5rem;
+  max-width: 340px;
+  margin: 0 auto;
+}
+
+@media (min-width: 500px) {
+  .app-grid { max-width: 420px; }
+}
+
+.app-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.app-tile:active .app-icon { transform: scale(0.88); }
+
+.app-icon {
+  width: 68px;
+  height: 68px;
+  border-radius: var(--radius-icon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  will-change: transform;
+  user-select: none;
+}
+
+.app-tile:hover .app-icon {
+  transform: scale(1.06);
+  box-shadow: var(--shadow-lg);
+}
+
+.app-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text);
+  text-align: center;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/* ── App page shell ─────────────────────────────────────── */
+.page {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse 140% 50% at 50% 0%, var(--bg2) 0%, transparent 65%),
+    var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--accent);
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.back-btn:hover { background: var(--surface); }
+
+.page-header-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.page-body {
+  flex: 1;
+  padding: 2rem 1.5rem;
+  max-width: 540px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── Cards ──────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Pomodoro ───────────────────────────────────────────── */
+.pomodoro-ring-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.pomodoro-ring {
+  position: relative;
+  width: 200px;
+  height: 200px;
+}
+
+.pomodoro-ring svg {
+  transform: rotate(-90deg);
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--surface2);
+  stroke-width: 10;
+}
+
+.ring-progress {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.ring-time {
+  font-size: 2.6rem;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ring-mode {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pomo-controls {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.btn {
+  padding: 0.6rem 1.4rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.btn:hover { background: var(--surface); transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: transparent;
+}
+
+.btn-primary:hover { filter: brightness(1.1); background: var(--accent); }
+
+.pomo-sessions {
+  text-align: center;
+  margin-top: 1.25rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* ── Notes ──────────────────────────────────────────────── */
+.notes-input-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.notes-input {
+  flex: 1;
+  padding: 0.65rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.notes-input:focus { border-color: var(--accent); }
+.notes-input::placeholder { color: var(--muted); }
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.note-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  animation: slide-in 0.15s ease;
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.note-text {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.note-time {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-top: 0.15rem;
+}
+
+.note-del {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.note-del:hover { color: #c0392b; background: rgba(192, 57, 43, 0.08); }
+
+.notes-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 2rem 0;
+}
