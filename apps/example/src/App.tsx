@@ -1,23 +1,53 @@
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
+import RainfallDistribution from './RainfallDistribution'
+
+// ── Theme ────────────────────────────────────────────────────
+function useTheme() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('theme') as 'dark' | 'light') ?? 'dark'
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '')
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggle = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+  return { theme, toggle }
+}
 
 // ── App registry ────────────────────────────────────────────
 const APP_LIST = [
-  { name: 'Timer', path: '/timer', icon: '⏱', gradient: 'linear-gradient(145deg, #e8705a, #b84030)' },
-  { name: 'Notes', path: '/notes', icon: '📋', gradient: 'linear-gradient(145deg, #c9a84c, #8a6220)' },
+  { name: 'Timer',    path: '/timer',    icon: '⏱', gradient: 'linear-gradient(145deg, #2a6898, #1a3a5a)' },
+  { name: 'Notes',    path: '/notes',    icon: '📋', gradient: 'linear-gradient(145deg, #2a7855, #1a4a32)' },
+  { name: 'Rainfall', path: '/rainfall', icon: '🌧', gradient: 'linear-gradient(145deg, #3a6888, #7eb8d4)' },
 ]
+
+// ── Theme toggle button ──────────────────────────────────────
+function ThemeToggle({ theme, toggle }: { theme: 'dark' | 'light'; toggle: () => void }) {
+  return (
+    <button className="theme-toggle" onClick={toggle}>
+      {theme === 'dark' ? '☀ light' : '◑ dark'}
+    </button>
+  )
+}
 
 // ── Shared page shell ────────────────────────────────────────
 function AppPage({ title, children }: { title: string; children: React.ReactNode }) {
   const navigate = useNavigate()
+  const { theme, toggle } = useTheme()
   return (
     <div className="page">
       <header className="page-header">
-        <button className="back-btn" onClick={() => navigate('/')}>
-          ‹ Home
-        </button>
-        <span className="page-header-title">{title}</span>
+        <div className="page-header-left">
+          <button className="back-btn" onClick={() => navigate('/')}>
+            ‹ Home
+          </button>
+          <span className="page-header-title">{title}</span>
+        </div>
+        <ThemeToggle theme={theme} toggle={toggle} />
       </header>
       <div className="page-body">{children}</div>
     </div>
@@ -26,9 +56,12 @@ function AppPage({ title, children }: { title: string; children: React.ReactNode
 
 // ── Home ─────────────────────────────────────────────────────
 function Home() {
+  const { theme, toggle } = useTheme()
   return (
     <div className="home">
-      <p className="home-title">Apps</p>
+      <div className="home-header">
+        <ThemeToggle theme={theme} toggle={toggle} />
+      </div>
       <div className="app-grid">
         {APP_LIST.map(app => (
           <Link key={app.path} to={app.path} className="app-tile">
@@ -45,8 +78,8 @@ function Home() {
 
 // ── Wheel picker ──────────────────────────────────────────────
 const ITEM_H  = 44
-const WHEEL_H = ITEM_H * 5       // 5 items visible
-const PAD     = (WHEEL_H - ITEM_H) / 2  // top/bottom padding so first/last items can centre
+const WHEEL_H = ITEM_H * 5
+const PAD     = (WHEEL_H - ITEM_H) / 2
 
 const H_ITEMS = Array.from({ length: 24 }, (_, i) => i)
 const M_ITEMS = Array.from({ length: 60 }, (_, i) => i)
@@ -184,7 +217,7 @@ function Timer() {
                   <circle
                     className="ring-progress"
                     cx="100" cy="100" r={r}
-                    stroke={done ? '#5a9e6a' : '#e8705a'}
+                    stroke={done ? '#5a9e6a' : 'var(--accent)'}
                     strokeDasharray={circ}
                     strokeDashoffset={offset}
                   />
@@ -263,12 +296,19 @@ function Notes() {
 
 // ── Router ───────────────────────────────────────────────────
 export default function App() {
+  // Apply saved theme on initial load
+  useEffect(() => {
+    const saved = localStorage.getItem('theme') ?? 'dark'
+    document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : '')
+  }, [])
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/"          element={<Home />} />
         <Route path="/timer"     element={<Timer />} />
         <Route path="/notes"     element={<Notes />} />
+        <Route path="/rainfall"  element={<RainfallDistribution />} />
       </Routes>
     </BrowserRouter>
   )
