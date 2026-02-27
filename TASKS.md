@@ -3,29 +3,40 @@
 ## Setup checklist
 
 ### GitHub
-- [ ] Create GitHub account at github.com (username: willchurcher)
-- [ ] On VM: `gh auth login` (choose HTTPS → Login with browser, follow one-time code)
-- [ ] On VM: `gh repo create willchurcher-apps --public --source=/root/willchurcher-apps --push`
+- [x] Create GitHub repo `willchurcher/willchurcher-apps`
+- [x] `gh auth login` — authenticated as willchurcher
+- [x] Repo pushed to `git@github.com:willchurcher/willchurcher-apps.git`
 
-### DNS (in domain registrar / Cloudflare)
-- [ ] Add wildcard CNAME: `*` → `cname.vercel-dns.com` (covers all future apps, one-time)
+### DNS
+- [x] `apps CNAME → cname.vercel-dns.com` added in Namecheap
+- [ ] Verify `apps.willchurcher.com` resolves (may still be propagating)
 
 ### Vercel
-- [ ] Create account at vercel.com → sign up with GitHub
-- [ ] New Project → import `willchurcher-apps` → Root Directory: `apps/example`
-- [ ] After deploy: Settings → Domains → add `example.willchurcher.com`
+- [x] Vercel CLI installed and authenticated (wrapper at `/root/.nvm/.../bin/vercel`)
+- [x] Project `example` deployed to Vercel
+- [x] Domain `apps.willchurcher.com` added to project
+- [ ] **Connect GitHub → Vercel auto-deploy**
+      Go to: vercel.com/willchurchers-projects/example/settings/git
+      Connect repo `willchurcher/willchurcher-apps`, Root Directory: `apps/example`
+      (Until then, deploy manually with `cd apps/example && vercel --prod --scope willchurchers-projects`)
 
 ## Apps
 
-### example (scaffold)
-- [x] Scaffold Vite+React+TS app
-- [ ] Deploy to Vercel
-- [ ] Verify at example.willchurcher.com
+### Home screen — apps.willchurcher.com
+- [x] iPhone-style icon grid
+- [x] Sepia light mode + warm dark mode
+- [x] React Router (all apps are routes)
+
+### Pomodoro — apps.willchurcher.com/pomodoro
+- [x] Circular progress ring
+- [x] Focus / break modes
+- [x] Session counter
+
+### Notes — apps.willchurcher.com/notes
+- [x] Add / delete notes
+- [x] localStorage persistence
+- [x] Timestamps
 
 ## Backlog (app ideas)
-<!-- Add app ideas here as you think of them -->
 - [ ] todo-list
-- [ ] pomodoro timer
-
-## Done
-<!-- Move completed apps here -->
+- [ ] habit tracker
