@@ -38,6 +38,7 @@
 /* ── Reset ──────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -185,14 +186,91 @@ a { color: inherit; text-decoration: none; }
   box-shadow: var(--shadow-sm);
 }
 
-/* ── Pomodoro ───────────────────────────────────────────── */
-.pomodoro-ring-wrap {
+/* ── Wheel picker ───────────────────────────────────────── */
+.wheels-row {
   display: flex;
   justify-content: center;
   margin-bottom: 1.5rem;
 }
 
-.pomodoro-ring {
+.wheel-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+}
+
+.wheel-outer {
+  position: relative;
+  height: 220px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.wheel-scroller {
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.wheel-scroller::-webkit-scrollbar { display: none; }
+
+.wheel-item {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-size: 1.75rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  user-select: none;
+}
+
+.wheel-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--surface) 0%,
+    transparent 28%,
+    transparent 72%,
+    var(--surface) 100%
+  );
+  pointer-events: none;
+}
+
+.wheel-selector {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  right: 12px;
+  height: 44px;
+  transform: translateY(-50%);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.wheel-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* ── Timer ──────────────────────────────────────────────── */
+.timer-ring-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.timer-ring {
   position: relative;
   width: 200px;
   height: 200px;
@@ -233,19 +311,20 @@ a { color: inherit; text-decoration: none; }
   font-variant-numeric: tabular-nums;
 }
 
-.ring-mode {
-  font-size: 0.7rem;
+
+.ring-done {
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #5a9e6a;
 }
 
-.pomo-controls {
+.timer-controls {
   display: flex;
   justify-content: center;
   gap: 0.75rem;
-  margin-top: 1rem;
+  margin-top: 0.25rem;
 }
 
 .btn {
@@ -271,12 +350,6 @@ a { color: inherit; text-decoration: none; }
 
 .btn-primary:hover { filter: brightness(1.1); background: var(--accent); }
 
-.pomo-sessions {
-  text-align: center;
-  margin-top: 1.25rem;
-  font-size: 0.78rem;
-  color: var(--muted);
-}
 
 /* ── Notes ──────────────────────────────────────────────── */
 .notes-input-row {

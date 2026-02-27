@@ -1,42 +1,36 @@
 # Tasks & Progress
 
-## Setup checklist
-
-### GitHub
-- [x] Create GitHub repo `willchurcher/willchurcher-apps`
-- [x] `gh auth login` — authenticated as willchurcher
-- [x] Repo pushed to `git@github.com:willchurcher/willchurcher-apps.git`
-
-### DNS
-- [x] `apps CNAME → cname.vercel-dns.com` added in Namecheap
-- [ ] Verify `apps.willchurcher.com` resolves (may still be propagating)
-
-### Vercel
-- [x] Vercel CLI installed and authenticated (wrapper at `/root/.nvm/.../bin/vercel`)
-- [x] Project `example` deployed to Vercel
-- [x] Domain `apps.willchurcher.com` added to project
-- [ ] **Connect GitHub → Vercel auto-deploy**
-      Go to: vercel.com/willchurchers-projects/example/settings/git
-      Connect repo `willchurcher/willchurcher-apps`, Root Directory: `apps/example`
-      (Until then, deploy manually with `cd apps/example && vercel --prod --scope willchurchers-projects`)
+## Setup — all done
+- [x] GitHub repo `willchurcher/willchurcher-apps` — connected to Vercel auto-deploy
+- [x] Vercel CLI authenticated (token stored in `/root/.nvm/.../bin/vercel` wrapper)
+- [x] `apps.willchurcher.com` → `master` (production)
+- [x] `devapps.willchurcher.com` → `develop` (staging)
+- [x] GitHub push → Vercel auto-deploys (master = prod, develop = staging)
 
 ## Apps
 
-### Home screen — apps.willchurcher.com
-- [x] iPhone-style icon grid
-- [x] Sepia light mode + warm dark mode
-- [x] React Router (all apps are routes)
+### Home — apps.willchurcher.com
+- [x] iPhone-style icon grid, 4 columns
+- [x] Sepia light mode + warm dark mode (CSS variables, auto via prefers-color-scheme)
+- [x] React Router — all apps are routes in one Vite project
 
-### Pomodoro — apps.willchurcher.com/pomodoro
-- [x] Circular progress ring
-- [x] Focus / break modes
-- [x] Session counter
+### Timer — apps.willchurcher.com/timer
+- [x] Scroll wheel picker (hours / minutes / seconds), iOS-style fade
+- [x] Countdown ring with pause/resume/reset
+- [x] Ring turns green + "done" on completion
 
 ### Notes — apps.willchurcher.com/notes
 - [x] Add / delete notes
 - [x] localStorage persistence
 - [x] Timestamps
 
-## Backlog (app ideas)
+## Skills
+- [x] `/remember` — scans conversation for preferences, confirms, saves to MEMORY.md
+- [x] `/preferences` — view, add, remove saved preferences
+- [x] `/deploy-status` — check Vercel deployment status
+- [x] `/update-progress` — update this file
+
+## Backlog
 - [ ] todo-list
 - [ ] habit tracker
+- [ ] something with notifications (timer alarm?)
