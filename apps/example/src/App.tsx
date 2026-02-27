@@ -1,22 +1,8 @@
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
+import { ThemeProvider, useTheme } from './ThemeContext'
 import RainfallDistribution from './RainfallDistribution'
-
-// ── Theme ────────────────────────────────────────────────────
-function useTheme() {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('theme') as 'dark' | 'light') ?? 'dark'
-  })
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '')
-    localStorage.setItem('theme', theme)
-  }, [theme])
-
-  const toggle = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
-  return { theme, toggle }
-}
 
 // ── App registry ────────────────────────────────────────────
 const APP_LIST = [
@@ -24,15 +10,6 @@ const APP_LIST = [
   { name: 'Notes',    path: '/notes',    icon: '📋', gradient: 'linear-gradient(145deg, #2a7855, #1a4a32)' },
   { name: 'Rainfall', path: '/rainfall', icon: '🌧', gradient: 'linear-gradient(145deg, #3a6888, #7eb8d4)' },
 ]
-
-// ── Theme toggle button ──────────────────────────────────────
-function ThemeToggle({ theme, toggle }: { theme: 'dark' | 'light'; toggle: () => void }) {
-  return (
-    <button className="theme-toggle" onClick={toggle}>
-      {theme === 'dark' ? '☀ light' : '◑ dark'}
-    </button>
-  )
-}
 
 // ── Shared page shell ────────────────────────────────────────
 function AppPage({ title, children }: { title: string; children: React.ReactNode }) {
@@ -47,7 +24,9 @@ function AppPage({ title, children }: { title: string; children: React.ReactNode
           </button>
           <span className="page-header-title">{title}</span>
         </div>
-        <ThemeToggle theme={theme} toggle={toggle} />
+        <button className="theme-toggle" onClick={toggle}>
+          {theme === 'dark' ? '☀ light' : '◑ dark'}
+        </button>
       </header>
       <div className="page-body">{children}</div>
     </div>
@@ -60,7 +39,9 @@ function Home() {
   return (
     <div className="home">
       <div className="home-header">
-        <ThemeToggle theme={theme} toggle={toggle} />
+        <button className="theme-toggle" onClick={toggle}>
+          {theme === 'dark' ? '☀ light' : '◑ dark'}
+        </button>
       </div>
       <div className="app-grid">
         {APP_LIST.map(app => (
@@ -296,20 +277,16 @@ function Notes() {
 
 // ── Router ───────────────────────────────────────────────────
 export default function App() {
-  // Apply saved theme on initial load
-  useEffect(() => {
-    const saved = localStorage.getItem('theme') ?? 'dark'
-    document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : '')
-  }, [])
-
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/"          element={<Home />} />
-        <Route path="/timer"     element={<Timer />} />
-        <Route path="/notes"     element={<Notes />} />
-        <Route path="/rainfall"  element={<RainfallDistribution />} />
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/"          element={<Home />} />
+          <Route path="/timer"     element={<Timer />} />
+          <Route path="/notes"     element={<Notes />} />
+          <Route path="/rainfall"  element={<RainfallDistribution />} />
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }

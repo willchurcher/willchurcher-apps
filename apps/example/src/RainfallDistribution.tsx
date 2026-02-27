@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useTheme } from './ThemeContext'
 
 interface MonthData {
   name: string
@@ -114,15 +116,32 @@ function logit(p: number): number {
   return Math.log(pc / (1 - pc))
 }
 
+// ── Theme-aware colour helpers ─────────────────────────────────────────────────
+function svgColors(isDark: boolean) {
+  return {
+    grid:       isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)',
+    axis:       isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.18)',
+    axisMinor:  isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.10)',
+    tickLabel:  isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.45)',
+    axisLabel:  isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.3)',
+    cursor:     isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)',
+    ttBg:       isDark ? 'rgba(8,12,24,0.93)'     : 'rgba(240,246,252,0.96)',
+    ttText:     isDark ? '#c8d8e8'                 : '#0c1a2e',
+    dotStroke:  isDark ? '#080c18'                 : '#f0f5fa',
+  }
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
-function Checkbox({ label, checked, onChange, color }: {
-  label: string; checked: boolean; onChange: () => void; color: string
+function Checkbox({ label, checked, onChange, color, isDark }: {
+  label: string; checked: boolean; onChange: () => void; color: string; isDark: boolean
 }) {
+  const dim = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.35)'
+  const dimMuted = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.3)'
   return (
     <div onClick={onChange} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
       <div style={{
         width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-        border: `1px solid ${checked ? color : 'rgba(255,255,255,0.15)'}`,
+        border: `1px solid ${checked ? color : dim}`,
         background: checked ? color + '2a' : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all 0.15s',
@@ -134,25 +153,28 @@ function Checkbox({ label, checked, onChange, color }: {
           </svg>
         )}
       </div>
-      <span style={{ fontSize: 10, letterSpacing: '0.12em', color: checked ? '#c0d0e0' : 'rgba(255,255,255,0.3)', transition: 'color 0.2s' }}>
+      <span style={{ fontSize: 10, letterSpacing: '0.12em', color: checked ? (isDark ? '#c0d0e0' : '#0c1a2e') : dimMuted, transition: 'color 0.2s' }}>
         {label}
       </span>
     </div>
   )
 }
 
-function ToggleSwitch({ options, value, onChange, color }: {
-  options: string[]; value: string; onChange: (v: string) => void; color: string
+function ToggleSwitch({ options, value, onChange, color, isDark }: {
+  options: string[]; value: string; onChange: (v: string) => void; color: string; isDark: boolean
 }) {
+  const dimBg  = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'
+  const dimBdr = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)'
+  const dimTxt = isDark ? 'rgba(255,255,255,0.3)'  : 'rgba(0,0,0,0.4)'
   return (
-    <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', background: dimBg, borderRadius: 6, border: `1px solid ${dimBdr}`, overflow: 'hidden' }}>
       {options.map(opt => (
         <div key={opt} onClick={() => onChange(opt)} style={{
           padding: '5px 14px', fontSize: 10, letterSpacing: '0.12em',
           cursor: 'pointer', userSelect: 'none', transition: 'all 0.15s',
           background: value === opt ? color + '28' : 'transparent',
-          color: value === opt ? color : 'rgba(255,255,255,0.3)',
-          borderRight: opt !== options[options.length - 1] ? '1px solid rgba(255,255,255,0.08)' : 'none',
+          color: value === opt ? color : dimTxt,
+          borderRight: opt !== options[options.length - 1] ? `1px solid ${dimBdr}` : 'none',
         }}>{opt}</div>
       ))}
     </div>
@@ -162,13 +184,14 @@ function ToggleSwitch({ options, value, onChange, color }: {
 // ── Chart ──────────────────────────────────────────────────────────────────────
 interface HoverState { svgX: number; svgY: number; dataX: number; dataY: number; label: string }
 
-function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick }: {
+function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick, isDark }: {
   month: MonthData; pdfYMax: number; logX: boolean; logY: boolean
-  mode: string; isSelected: boolean; onClick: () => void
+  mode: string; isSelected: boolean; onClick: () => void; isDark: boolean
 }) {
   const { name, k, theta, pRain, totalMm, color } = month
   const svgRef = useRef<SVGSVGElement>(null)
   const [hover, setHover] = useState<HoverState | null>(null)
+  const sc = svgColors(isDark)
 
   const { bins, curve } = useMemo(() => {
     const rng = mulberry32(name.charCodeAt(0) * 1009 + name.charCodeAt(1) * 137 + 42)
@@ -288,24 +311,29 @@ function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick }: {
   const ttWidth = 130
   const ttX = hover ? (hover.svgX + ttWidth > W - PR ? hover.svgX - ttWidth - 6 : hover.svgX + 6) : 0
 
+  // Card theming via CSS vars
+  const cardBg    = isSelected ? `rgba(${hexRgb(color)},0.08)` : 'var(--surface)'
+  const cardBdr   = isSelected ? color + '55' : 'var(--border)'
+  const metaColor = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.35)'
+
   return (
     <div onClick={onClick} style={{
       cursor: 'pointer',
-      background: isSelected ? `rgba(${hexRgb(color)},0.08)` : 'rgba(255,255,255,0.025)',
-      border: `1px solid ${isSelected ? color + '55' : 'rgba(255,255,255,0.07)'}`,
+      background: cardBg,
+      border: `1px solid ${cardBdr}`,
       borderRadius: 12, padding: '13px 11px 7px',
       transition: 'transform 0.15s, box-shadow 0.15s, background 0.2s',
       transform: isSelected ? 'translateY(-4px)' : 'none',
-      boxShadow: isSelected ? `0 12px 32px rgba(${hexRgb(color)},0.2)` : 'none',
+      boxShadow: isSelected ? `0 12px 32px rgba(${hexRgb(color)},0.2)` : 'var(--shadow-sm)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
         <div>
           <span style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 23, letterSpacing: '0.06em', color }}>{name}</span>
-          <span style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.2)', marginLeft: 6, letterSpacing: '0.1em' }}>P(rain)={Math.round(pRain * 100)}%</span>
+          <span style={{ fontSize: 8.5, color: metaColor, marginLeft: 6, letterSpacing: '0.1em' }}>P(rain)={Math.round(pRain * 100)}%</span>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <span style={{ fontSize: 11, color: '#9ab0c4' }}>{totalMm}</span>
-          <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.2)', marginLeft: 2 }}>mm/mo</span>
+          <span style={{ fontSize: 11, color: 'var(--text2)' }}>{totalMm}</span>
+          <span style={{ fontSize: 8, color: metaColor, marginLeft: 2 }}>mm/mo</span>
         </div>
       </div>
 
@@ -329,7 +357,7 @@ function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick }: {
 
         {yTicks.filter(v => mode === 'CDF' ? v > 0 && v < 1 : v > 0).map((yt, i) => {
           const y = clipSvgY(toSvgY(yt))
-          return <line key={i} x1={PL} y1={y} x2={PL + pw} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          return <line key={i} x1={PL} y1={y} x2={PL + pw} y2={y} stroke={sc.grid} strokeWidth="1" />
         })}
 
         {mode === 'PDF' && (
@@ -384,27 +412,27 @@ function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick }: {
         {hover && (
           <g>
             <line x1={hover.svgX} y1={PT} x2={hover.svgX} y2={PT + ph}
-              stroke="rgba(255,255,255,0.25)" strokeWidth="1" strokeDasharray="2,2" />
+              stroke={sc.cursor} strokeWidth="1" strokeDasharray="2,2" />
             <circle cx={hover.svgX} cy={hover.svgY} r="3.5"
-              fill={color} stroke="#080c18" strokeWidth="1.5" opacity="0.95" />
+              fill={color} stroke={sc.dotStroke} strokeWidth="1.5" opacity="0.95" />
             <rect x={ttX} y={hover.svgY - 22} width={ttWidth} height={20}
-              rx="4" fill="rgba(8,12,24,0.92)" stroke={color + '55'} strokeWidth="1" />
-            <text x={ttX + 6} y={hover.svgY - 8} fontSize="8.5" fill="#c8d8e8" letterSpacing="0.05em">
+              rx="4" fill={sc.ttBg} stroke={color + '55'} strokeWidth="1" />
+            <text x={ttX + 6} y={hover.svgY - 8} fontSize="8.5" fill={sc.ttText} letterSpacing="0.05em">
               {hover.label}
             </text>
           </g>
         )}
 
-        <line x1={PL} y1={PT + ph} x2={PL + pw} y2={PT + ph} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-        <line x1={PL} y1={PT} x2={PL} y2={PT + ph} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+        <line x1={PL} y1={PT + ph} x2={PL + pw} y2={PT + ph} stroke={sc.axis} strokeWidth="1" />
+        <line x1={PL} y1={PT} x2={PL} y2={PT + ph} stroke={sc.axisMinor} strokeWidth="1" />
 
         {xTicks.map(t => {
           const x = clip(toSvgX(t), PL - 1, PL + pw + 1)
           if (x < PL - 1 || x > PL + pw + 1) return null
           return (
             <g key={t}>
-              <line x1={x} y1={PT + ph} x2={x} y2={PT + ph + 3} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-              <text x={x} y={PT + ph + 11} textAnchor="middle" fontSize="7.5" fill="rgba(255,255,255,0.25)">{t}</text>
+              <line x1={x} y1={PT + ph} x2={x} y2={PT + ph + 3} stroke={sc.axis} strokeWidth="1" />
+              <text x={x} y={PT + ph + 11} textAnchor="middle" fontSize="7.5" fill={sc.tickLabel}>{t}</text>
             </g>
           )
         })}
@@ -413,21 +441,21 @@ function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick }: {
           const y = clipSvgY(toSvgY(yt))
           return (
             <g key={i}>
-              <line x1={PL - 3} y1={y} x2={PL} y2={y} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-              <text x={PL - 5} y={y + 3} textAnchor="end" fontSize="6.5" fill="rgba(255,255,255,0.22)">{yFmt(yt)}</text>
+              <line x1={PL - 3} y1={y} x2={PL} y2={y} stroke={sc.axis} strokeWidth="1" />
+              <text x={PL - 5} y={y + 3} textAnchor="end" fontSize="6.5" fill={sc.tickLabel}>{yFmt(yt)}</text>
             </g>
           )
         })}
 
         <text transform={`translate(9,${PT + ph / 2}) rotate(-90)`}
-          textAnchor="middle" fontSize="6.5" fill="rgba(255,255,255,0.15)" letterSpacing="0.8">{yLabel}</text>
+          textAnchor="middle" fontSize="6.5" fill={sc.axisLabel} letterSpacing="0.8">{yLabel}</text>
         <text x={PL + pw / 2} y={H - 1}
-          textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.15)" letterSpacing="0.8">
+          textAnchor="middle" fontSize="7" fill={sc.axisLabel} letterSpacing="0.8">
           {logX ? 'mm/day (log)' : 'mm / day'}
         </text>
       </svg>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 1, fontSize: 8.5, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.1em' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 1, fontSize: 8.5, color: metaColor, letterSpacing: '0.1em' }}>
         <span>k={k.toFixed(2)}</span>
         <span style={{ color: color + '99' }}>mean {mean.toFixed(1)} mm</span>
         <span>θ={theta.toFixed(1)}</span>
@@ -436,8 +464,12 @@ function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick }: {
   )
 }
 
-// ── App ────────────────────────────────────────────────────────────────────────
+// ── Page ───────────────────────────────────────────────────────────────────────
 export default function RainfallDistribution() {
+  const navigate = useNavigate()
+  const { theme, toggle } = useTheme()
+  const isDark = theme === 'dark'
+
   const [selected, setSelected] = useState<string | null>(null)
   const [logY, setLogY] = useState(false)
   const [logX, setLogX] = useState(false)
@@ -455,85 +487,104 @@ export default function RainfallDistribution() {
     return Math.ceil(g * 1000) / 1000 + 0.001
   }, [])
 
+  const subtleText   = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.35)'
+  const subtleMuted  = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.4)'
+  const controlsBg   = isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.03)'
+  const controlsBdr  = isDark ? 'rgba(255,255,255,0.07)'  : 'rgba(0,0,0,0.08)'
+  const legendBg     = isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.02)'
+  const legendBdr    = isDark ? 'rgba(255,255,255,0.05)'  : 'rgba(0,0,0,0.07)'
+  const footerText   = isDark ? 'rgba(255,255,255,0.1)'   : 'rgba(0,0,0,0.2)'
+
   return (
-    <div style={{
-      background: '#080c18', minHeight: '100vh',
-      fontFamily: "'DM Mono','Courier New',monospace", color: '#e0e8f0', padding: '22px 16px 48px',
-    }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <div className="page">
+      {/* Header — matches AppPage style */}
+      <header className="page-header">
+        <div className="page-header-left">
+          <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
+          <span className="page-header-title">Tokyo Rainfall</span>
+        </div>
+        <button className="theme-toggle" onClick={toggle}>
+          {isDark ? '☀ light' : '◑ dark'}
+        </button>
+      </header>
 
-        <div style={{ textAlign: 'center', marginBottom: 6 }}>
-          <div style={{ fontSize: 9, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.18)', marginBottom: 5, textTransform: 'uppercase' }}>
-            Gamma fit · JMA normals 1991–2020 · Tokyo · wet days only
+      {/* Content — full-width scrollable body */}
+      <div style={{ flex: 1, padding: '18px 16px 48px', overflowX: 'hidden' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', fontFamily: "'DM Mono','Courier New',monospace" }}>
+
+          <div style={{ textAlign: 'center', marginBottom: 6 }}>
+            <div style={{ fontSize: 9, letterSpacing: '0.26em', color: subtleText, marginBottom: 5, textTransform: 'uppercase' }}>
+              Gamma fit · JMA normals 1991–2020 · wet days only
+            </div>
+            <h1 style={{
+              fontFamily: "'Bebas Neue',sans-serif",
+              fontSize: 'clamp(26px,4.5vw,54px)', letterSpacing: '0.1em', margin: '0 0 3px',
+              background: 'linear-gradient(135deg,#7eb8d4 0%,#c44a8a 55%,#e8972a 100%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            }}>
+              TOKYO RAINFALL
+            </h1>
+            <p style={{ fontSize: 9, color: subtleMuted, margin: 0, letterSpacing: '0.1em' }}>
+              hover curve for values · dashed = mean · shared axes
+            </p>
           </div>
-          <h1 style={{
-            fontFamily: "'Bebas Neue',sans-serif",
-            fontSize: 'clamp(26px,4.5vw,54px)', letterSpacing: '0.1em', margin: '0 0 3px',
-            background: 'linear-gradient(135deg,#7eb8d4 0%,#c44a8a 55%,#e8972a 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+
+          <div style={{
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            flexWrap: 'wrap', gap: 20, margin: '14px 0 6px',
+            padding: '11px 24px', background: controlsBg,
+            border: `1px solid ${controlsBdr}`, borderRadius: 10,
+            width: 'fit-content', marginLeft: 'auto', marginRight: 'auto',
           }}>
-            DAILY RAINFALL DISTRIBUTIONS
-          </h1>
-          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', margin: 0, letterSpacing: '0.1em' }}>
-            hover curve for values · dashed = mean · shared axes
-          </p>
-        </div>
-
-        <div style={{
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          flexWrap: 'wrap', gap: 20, margin: '14px 0 6px',
-          padding: '11px 24px', background: 'rgba(255,255,255,0.025)',
-          border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10,
-          width: 'fit-content', marginLeft: 'auto', marginRight: 'auto',
-        }}>
-          <ToggleSwitch options={['PDF', 'CDF']} value={mode} onChange={setMode} color={accent} />
-          <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.08)' }} />
-          <Checkbox label="LOG Y" checked={logY} onChange={() => setLogY(v => !v)} color={accent} />
-          <Checkbox label="LOG X" checked={logX} onChange={() => setLogX(v => !v)} color={accent} />
-          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', maxWidth: 220, lineHeight: 1.5 }}>
-            {mode === 'CDF' && logY
-              ? 'Y = log-odds (logistic scale) — S-curve becomes linear if Gamma fits well'
-              : mode === 'CDF'
-              ? 'CDF — empirical step fn vs fitted Gamma'
-              : logY
-              ? 'Log density — tail behaviour linearised'
-              : 'PDF — density histogram + Gamma fit'}
+            <ToggleSwitch options={['PDF', 'CDF']} value={mode} onChange={setMode} color={accent} isDark={isDark} />
+            <div style={{ width: 1, height: 18, background: controlsBdr }} />
+            <Checkbox label="LOG Y" checked={logY} onChange={() => setLogY(v => !v)} color={accent} isDark={isDark} />
+            <Checkbox label="LOG X" checked={logX} onChange={() => setLogX(v => !v)} color={accent} isDark={isDark} />
+            <div style={{ fontSize: 9, color: subtleMuted, letterSpacing: '0.08em', maxWidth: 220, lineHeight: 1.5 }}>
+              {mode === 'CDF' && logY
+                ? 'Y = log-odds (logistic scale) — S-curve becomes linear if Gamma fits well'
+                : mode === 'CDF'
+                ? 'CDF — empirical step fn vs fitted Gamma'
+                : logY
+                ? 'Log density — tail behaviour linearised'
+                : 'PDF — density histogram + Gamma fit'}
+            </div>
           </div>
-        </div>
 
-        <div style={{ textAlign: 'center', margin: '8px auto 14px', maxWidth: 660, fontSize: 9.5, color: 'rgba(255,255,255,0.3)', lineHeight: 1.7, letterSpacing: '0.07em' }}>
-          <span style={{ color: '#e8972a' }}>Jul</span> drier than <span style={{ color: '#c8c43a' }}>Jun</span> — tsuyu lifts mid-July.&ensp;
-          <span style={{ color: '#c44a3a' }}>Sep</span> &amp; <span style={{ color: '#c44a8a' }}>Oct</span> wettest — typhoon season.
-        </div>
+          <div style={{ textAlign: 'center', margin: '8px auto 14px', maxWidth: 660, fontSize: 9.5, color: subtleMuted, lineHeight: 1.7, letterSpacing: '0.07em' }}>
+            <span style={{ color: '#e8972a' }}>Jul</span> drier than <span style={{ color: '#c8c43a' }}>Jun</span> — tsuyu lifts mid-July.&ensp;
+            <span style={{ color: '#c44a3a' }}>Sep</span> &amp; <span style={{ color: '#c44a8a' }}>Oct</span> wettest — typhoon season.
+          </div>
 
-        <div style={{ display: 'flex', gap: 0, marginBottom: 16, height: 4, borderRadius: 3, overflow: 'hidden' }}>
-          {MONTHS.map(m => <div key={m.name} style={{ flex: m.totalMm, background: m.color, opacity: 0.6 }} />)}
-        </div>
+          <div style={{ display: 'flex', gap: 0, marginBottom: 16, height: 4, borderRadius: 3, overflow: 'hidden' }}>
+            {MONTHS.map(m => <div key={m.name} style={{ flex: m.totalMm, background: m.color, opacity: 0.6 }} />)}
+          </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 11 }}>
-          {MONTHS.map(m => (
-            <MonthChart key={m.name} month={m} pdfYMax={pdfYMax}
-              logX={logX} logY={logY} mode={mode}
-              isSelected={selected === m.name}
-              onClick={() => setSelected(s => s === m.name ? null : m.name)} />
-          ))}
-        </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 11 }}>
+            {MONTHS.map(m => (
+              <MonthChart key={m.name} month={m} pdfYMax={pdfYMax}
+                logX={logX} logY={logY} mode={mode} isDark={isDark}
+                isSelected={selected === m.name}
+                onClick={() => setSelected(s => s === m.name ? null : m.name)} />
+            ))}
+          </div>
 
-        <div style={{
-          marginTop: 20, padding: '11px 16px',
-          background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.05)',
-          borderRadius: 10, display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill,minmax(195px,1fr))',
-          gap: '5px 16px', fontSize: 9, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em', lineHeight: 1.8,
-        }}>
-          <div><span style={{ color: accent }}>PDF + LOG Y</span><br />Log density — straight tail implies exponential decay; Gamma deviation visible</div>
-          <div><span style={{ color: accent }}>CDF + LOG Y</span><br />Logistic (log-odds) scale — a perfect Gamma CDF is sigmoid; deviations at tails show misfit</div>
-          <div><span style={{ color: accent }}>LOG X</span><br />Spreads light-rain region; winter peaks sharpen, summer tails extend</div>
-          <div><span style={{ color: accent }}>EMPIRICAL</span><br />PDF: grey bars. CDF: step function. Curve is analytical Gamma(k,θ)</div>
-        </div>
+          <div style={{
+            marginTop: 20, padding: '11px 16px',
+            background: legendBg, border: `1px solid ${legendBdr}`,
+            borderRadius: 10, display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill,minmax(195px,1fr))',
+            gap: '5px 16px', fontSize: 9, color: subtleMuted, letterSpacing: '0.08em', lineHeight: 1.8,
+          }}>
+            <div><span style={{ color: accent }}>PDF + LOG Y</span><br />Log density — straight tail implies exponential decay; Gamma deviation visible</div>
+            <div><span style={{ color: accent }}>CDF + LOG Y</span><br />Logistic (log-odds) scale — a perfect Gamma CDF is sigmoid; deviations at tails show misfit</div>
+            <div><span style={{ color: accent }}>LOG X</span><br />Spreads light-rain region; winter peaks sharpen, summer tails extend</div>
+            <div><span style={{ color: accent }}>EMPIRICAL</span><br />PDF: grey bars. CDF: step function. Curve is analytical Gamma(k,θ)</div>
+          </div>
 
-        <div style={{ textAlign: 'center', marginTop: 12, fontSize: 8, color: 'rgba(255,255,255,0.1)', letterSpacing: '0.14em' }}>
-          JMA NORMALS 1991–2020 · GAMMA METHOD OF MOMENTS · INCOMPLETE GAMMA CDF VIA CONTINUED FRACTION
+          <div style={{ textAlign: 'center', marginTop: 12, fontSize: 8, color: footerText, letterSpacing: '0.14em' }}>
+            JMA NORMALS 1991–2020 · GAMMA METHOD OF MOMENTS · INCOMPLETE GAMMA CDF VIA CONTINUED FRACTION
+          </div>
         </div>
       </div>
     </div>
