@@ -47,9 +47,11 @@ function Home() {
 const DEFAULT = 5 * 60
 
 function Timer() {
-  const [total,   setTotal]   = useState(DEFAULT)
-  const [seconds, setSeconds] = useState(DEFAULT)
-  const [running, setRunning] = useState(false)
+  const [total,    setTotal]   = useState(DEFAULT)
+  const [seconds,  setSeconds] = useState(DEFAULT)
+  const [running,  setRunning] = useState(false)
+  const [editing,  setEditing] = useState(false)
+  const [editVal,  setEditVal] = useState('')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -76,12 +78,28 @@ function Timer() {
     setSeconds(total)
   }
 
-  const done     = seconds === 0
-  const r        = 88
-  const circ     = 2 * Math.PI * r
-  const offset   = circ * (seconds / total)
-  const mm       = String(Math.floor(seconds / 60)).padStart(2, '0')
-  const ss       = String(seconds % 60).padStart(2, '0')
+  const startEdit = () => {
+    if (running) return
+    setEditVal(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`)
+    setEditing(true)
+  }
+
+  const commitEdit = () => {
+    setEditing(false)
+    const parts = editVal.split(':')
+    const mins  = parseInt(parts[0]) || 0
+    const secs  = parseInt(parts[1]) || 0
+    const next  = Math.max(60, Math.min(99 * 60, mins * 60 + secs))
+    setTotal(next)
+    setSeconds(next)
+  }
+
+  const done   = seconds === 0
+  const r      = 88
+  const circ   = 2 * Math.PI * r
+  const offset = circ * (seconds / total)
+  const mm     = String(Math.floor(seconds / 60)).padStart(2, '0')
+  const ss     = String(seconds % 60).padStart(2, '0')
 
   return (
     <AppPage title="Timer">
@@ -99,12 +117,28 @@ function Timer() {
               />
             </svg>
             <div className="ring-text">
-              <span className="ring-time">{mm}:{ss}</span>
+              {editing ? (
+                <input
+                  className="ring-time-input"
+                  value={editVal}
+                  onChange={e => setEditVal(e.target.value)}
+                  onBlur={commitEdit}
+                  onKeyDown={e => e.key === 'Enter' && commitEdit()}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className={`ring-time${!running ? ' ring-time-editable' : ''}`}
+                  onClick={startEdit}
+                >
+                  {mm}:{ss}
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {!running && (
+        {!running && !editing && (
           <div className="timer-adjust">
             <button className="btn" onClick={() => adjust(-5)}>−5m</button>
             <button className="btn" onClick={() => adjust(-1)}>−1m</button>
