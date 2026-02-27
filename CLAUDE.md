@@ -1,12 +1,12 @@
 # willchurcher-apps — Claude Instructions
 
-This is a monorepo of React apps built and deployed by Claude Code via SSH on a VM.
+This is a single Vite + React app with React Router, deployed to Vercel.
 Read this file at the start of every session to restore context.
 
 ## Stack
-- **Framework:** Vite + React + TypeScript
-- **Hosting:** Vercel (one project per app)
-- **Domain:** `appname.willchurcher.com` (wildcard DNS `*.willchurcher.com → cname.vercel-dns.com`)
+- **Framework:** Vite + React + TypeScript + React Router
+- **Hosting:** Vercel (one project, one deployment)
+- **Domain:** `apps.willchurcher.com` (DNS: `apps CNAME → cname.vercel-dns.com`)
 - **Deploy trigger:** Push to `master` branch on GitHub → Vercel auto-deploys
 
 ## Repo structure
@@ -15,45 +15,42 @@ willchurcher-apps/
 ├── CLAUDE.md              ← you are here
 ├── TASKS.md               ← task and progress list (keep updated)
 ├── README.md
-├── .claude/commands/      ← project skills (/new-app, /deploy-status, /update-progress)
+├── .claude/commands/      ← project skills (/deploy-status, /update-progress)
 └── apps/
-    └── <appname>/         ← each app is self-contained
+    └── example/           ← single Vite app, all routes live here
         ├── src/
+        │   ├── App.tsx    ← BrowserRouter + all routes defined here
+        │   └── main.tsx
+        ├── vercel.json    ← SPA rewrite: all paths → index.html
         ├── index.html
         ├── package.json
         ├── vite.config.ts
         └── tsconfig.json
 ```
 
-## Adding a new app
-Use `/new-app <name>` or follow these steps manually:
-1. Copy `apps/example` to `apps/<name>`
-2. Update `package.json` name field to `<name>`
-3. Update `vite.config.ts` base to `"/"`
+## Adding a new app/page
+1. Add a new component in `apps/example/src/App.tsx`
+2. Add a `<Route path="/appname" element={<YourComponent />} />` in the router
+3. Add the app to the `apps` array on the Home page so it shows up in the index
 4. Add entry to TASKS.md
-5. Push to GitHub, then on Vercel:
-   - New Project → import this repo
-   - Root Directory: `apps/<name>`
-   - Build Command: `npm run build`
-   - Output Directory: `dist`
-   - Add custom domain: `<name>.willchurcher.com`
+5. Push to GitHub — Vercel auto-deploys
 
 ## Conventions
-- Each app is fully independent (its own package.json, no shared build)
+- All apps are routes within the single Vite project (`apps/example`)
 - App names: lowercase, hyphenated (e.g. `todo-list`, `pomodoro`)
 - Always update TASKS.md when starting or finishing an app
-- Commit messages: imperative mood, e.g. "Add todo-list app", "Fix pomodoro timer reset"
+- Commit messages: imperative mood, e.g. "Add pomodoro route", "Fix todo list reset"
 
 ## Environment
-- Working on a Linux VM, SSH'd in from phone
-- User pushes to GitHub from the VM; Vercel handles the rest
-- Node/npm available on VM; run `npm install && npm run dev` inside `apps/<name>` to preview locally
+- Working on a Linux VM, SSH'd in from phone (Terminus app on iPhone)
+- Vercel CLI installed and authenticated via wrapper at `/root/.nvm/versions/node/v24.14.0/bin/vercel`
+- Run `npm install && npm run dev` inside `apps/example` to preview locally
 
 ## Current apps
 | App | URL | Status |
 |-----|-----|--------|
-| example | example.willchurcher.com | scaffold only |
+| Home | apps.willchurcher.com | live |
+| Example | apps.willchurcher.com/example | live |
 
 ## GitHub repo
-Set up with: `git remote add origin https://github.com/willchurcher/willchurcher-apps.git`
-(Create the GitHub repo first, then push: `git push -u origin master`)
+`git remote add origin git@github.com:willchurcher/willchurcher-apps.git`
