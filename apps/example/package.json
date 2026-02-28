@@ -12,6 +12,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-pdf": "^10.4.1",
+    "react-quick-pinch-zoom": "^5.1.1",
     "react-router-dom": "^7.13.1"
   },
   "devDependencies": {

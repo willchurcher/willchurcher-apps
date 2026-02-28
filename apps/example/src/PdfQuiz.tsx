@@ -18,20 +18,14 @@ export default function PdfQuiz() {
   const [numPages, setNumPages] = useState(0)
   const [renderScale, setRenderScale] = useState(1.0)
 
-  const fileRef      = useRef<HTMLInputElement>(null)
-  const viewerRef    = useRef<HTMLDivElement>(null)
-  const contentRef   = useRef<HTMLDivElement>(null)
+  const fileRef    = useRef<HTMLInputElement>(null)
+  const viewerRef  = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  // Keep committed scale in a ref so touch callbacks always see the latest value
   const committedScale = useRef(1.0)
 
   const [viewerWidth, setViewerWidth] = useState(window.innerWidth)
-
-  // Restore maximum-scale=1 (we handle pinch ourselves)
-  useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]')
-    const original = meta?.getAttribute('content') ?? ''
-    meta?.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1')
-    return () => { meta?.setAttribute('content', original) }
-  }, [])
 
   useEffect(() => {
     const obs = new ResizeObserver(([e]) => setViewerWidth(e.contentRect.width))
@@ -39,73 +33,88 @@ export default function PdfQuiz() {
     return () => obs.disconnect()
   }, [])
 
-  // Custom pinch-to-zoom: CSS transform during gesture, re-render on release
   useEffect(() => {
-    const viewer = viewerRef.current
+    const viewer  = viewerRef.current
     const content = contentRef.current
     if (!viewer || !content) return
 
-    let pinching = false
-    let startDist = 0
-    let gestureRatio = 1.0
+    // iOS Safari fires its own GestureEvent for pinch — block it so our
+    // touch handler is the only thing responding to two-finger gestures.
+    const blockGesture = (e: Event) => e.preventDefault()
+    document.addEventListener('gesturestart',  blockGesture, { passive: false })
+    document.addEventListener('gesturechange', blockGesture, { passive: false })
 
-    const getDist = (t: TouchList) =>
+    let startDist  = 0
+    let startMidX  = 0   // client-space midpoint of the two fingers
+    let startMidY  = 0
+    let pinchRatio = 1.0  // ratio relative to committedScale
+
+    const dist = (t: TouchList) =>
       Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
 
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        pinching = true
-        startDist = getDist(e.touches)
-        gestureRatio = 1.0
-      }
+      if (e.touches.length < 2) return
+      startDist  = dist(e.touches)
+      startMidX  = (e.touches[0].clientX + e.touches[1].clientX) / 2
+      startMidY  = (e.touches[0].clientY + e.touches[1].clientY) / 2
+      pinchRatio = 1.0
     }
 
     const onTouchMove = (e: TouchEvent) => {
-      if (!pinching || e.touches.length !== 2) return
+      if (startDist <= 0 || e.touches.length < 2) return
       e.preventDefault()
-      gestureRatio = getDist(e.touches) / startDist
-      // clamp so we don't go below 0.5× or above 4× total
-      const total = committedScale.current * gestureRatio
-      gestureRatio = Math.max(0.5, Math.min(4.0, total)) / committedScale.current
-      content.style.transform = `scale(${gestureRatio})`
-      content.style.transformOrigin = 'top center'
+
+      const rawRatio = dist(e.touches) / startDist
+      const total    = committedScale.current * rawRatio
+      pinchRatio     = Math.max(0.3, Math.min(3.0, total)) / committedScale.current
+
+      // Transform origin = pinch midpoint in content-element coordinates
+      const rect    = viewer.getBoundingClientRect()
+      const originX = (startMidX - rect.left) + viewer.scrollLeft
+      const originY = (startMidY - rect.top)  + viewer.scrollTop
+
+      content.style.transformOrigin = `${originX}px ${originY}px`
+      content.style.transform       = `scale(${pinchRatio})`
     }
 
     const onTouchEnd = (e: TouchEvent) => {
-      if (!pinching || e.touches.length >= 2) return
-      pinching = false
-      const newScale = Math.max(0.5, Math.min(4.0, committedScale.current * gestureRatio))
-      // Save fractional scroll position so we can restore it after re-render
-      const fraction = viewer.scrollTop / (viewer.scrollHeight || 1)
-      committedScale.current = newScale
-      content.style.transform = ''
+      if (startDist <= 0 || e.touches.length >= 2) return
+
+      // Clear the CSS transform
+      content.style.transform       = ''
       content.style.transformOrigin = ''
+
+      // Shift scroll so the pinch centre stays under the user's fingers
+      const rect = viewer.getBoundingClientRect()
+      viewer.scrollLeft += (startMidX - rect.left) * (pinchRatio - 1)
+      viewer.scrollTop  += (startMidY - rect.top)  * (pinchRatio - 1)
+
+      // Commit → react-pdf re-renders canvases at new pixel width (crisp)
+      const newScale = Math.max(0.3, Math.min(3.0, committedScale.current * pinchRatio))
+      committedScale.current = newScale
       setRenderScale(newScale)
-      // Restore scroll after paint
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          viewer.scrollTop = fraction * viewer.scrollHeight
-        })
-      })
+
+      startDist  = 0
+      pinchRatio = 1.0
     }
 
-    viewer.addEventListener('touchstart', onTouchStart, { passive: true })
-    viewer.addEventListener('touchmove', onTouchMove, { passive: false })
-    viewer.addEventListener('touchend', onTouchEnd, { passive: true })
+    viewer.addEventListener('touchstart', onTouchStart, { passive: true  })
+    viewer.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    viewer.addEventListener('touchend',   onTouchEnd,   { passive: true  })
 
     return () => {
       viewer.removeEventListener('touchstart', onTouchStart)
-      viewer.removeEventListener('touchmove', onTouchMove)
-      viewer.removeEventListener('touchend', onTouchEnd)
+      viewer.removeEventListener('touchmove',  onTouchMove)
+      viewer.removeEventListener('touchend',   onTouchEnd)
+      document.removeEventListener('gesturestart',  blockGesture)
+      document.removeEventListener('gesturechange', blockGesture)
     }
-  }, []) // refs are stable, no deps needed
+  }, [])
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (f) { setFile(f); setNumPages(0) }
   }
-
-  const pageWidth = viewerWidth * renderScale
 
   return (
     <div className="pdfquiz-page">
@@ -136,7 +145,7 @@ export default function PdfQuiz() {
                 <div key={i} className="pdfquiz-page-wrap">
                   <Page
                     pageNumber={i + 1}
-                    width={pageWidth}
+                    width={viewerWidth * renderScale}
                     renderAnnotationLayer={false}
                     renderTextLayer={true}
                   />
