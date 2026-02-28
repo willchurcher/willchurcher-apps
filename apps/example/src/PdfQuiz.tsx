@@ -10,7 +10,11 @@ import {
   loadPdfData,
   deletePdf,
   updatePages,
+  listNotes,
+  saveNote,
+  deleteNote,
   type PdfMeta,
+  type PdfNote,
 } from './pdfStorage'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -18,26 +22,80 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
+const SIDEBAR_W = 44
+
 function fmtSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-// ─── Library screen ──────────────────────────────────────────────────────────
+// ─── Flashcard overlay ────────────────────────────────────────────────────────
 
-function PdfLibrary({
-  docs,
-  onOpen,
-  onDelete,
-  onAdd,
-}: {
-  docs: PdfMeta[]
-  onOpen:   (doc: PdfMeta) => void
-  onDelete: (doc: PdfMeta) => void
-  onAdd:    () => void
+function Flashcard({ note, onClose }: { note: PdfNote; onClose: () => void }) {
+  const [flipped, setFlipped] = useState(false)
+
+  return (
+    <div className="fc-overlay" onClick={onClose}>
+      <div className="fc-card" onClick={e => { e.stopPropagation(); setFlipped(v => !v) }}>
+        <div className={`fc-face ${flipped ? 'fc-face-a' : 'fc-face-q'}`}>
+          <span className="fc-badge">{flipped ? 'A' : 'Q'}</span>
+          <p className="fc-text">{flipped ? note.answer : note.question}</p>
+          <span className="fc-hint">{flipped ? 'tap outside to close' : 'tap card to reveal answer'}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Note creation form (two stages, mirrors flashcard) ──────────────────────
+
+function NoteForm({ onSave, onCancel }: { onSave: (q: string, a: string) => void; onCancel: () => void }) {
+  const [stage, setStage] = useState<'q' | 'a'>('q')
+  const [q, setQ] = useState('')
+  const [a, setA] = useState('')
+
+  return (
+    <div className="fc-overlay" onClick={onCancel}>
+      <div className="fc-card" onClick={e => e.stopPropagation()}>
+        <div className={`fc-face ${stage === 'a' ? 'fc-face-a' : 'fc-face-q'}`}>
+          <span className="fc-badge">{stage === 'q' ? 'Q' : 'A'}</span>
+          <textarea
+            className="note-form-field"
+            placeholder={stage === 'q' ? 'Enter your question…' : 'Enter the answer…'}
+            value={stage === 'q' ? q : a}
+            onChange={e => stage === 'q' ? setQ(e.target.value) : setA(e.target.value)}
+            rows={4}
+            autoFocus
+          />
+          <div className="note-form-actions">
+            <button className="note-form-btn note-form-cancel" onClick={onCancel}>Cancel</button>
+            {stage === 'q' ? (
+              <button
+                className="note-form-btn note-form-save"
+                disabled={!q.trim()}
+                onClick={() => setStage('a')}
+              >Next →</button>
+            ) : (
+              <button
+                className="note-form-btn note-form-save"
+                disabled={!a.trim()}
+                onClick={() => onSave(q.trim(), a.trim())}
+              >Save</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Library screen ───────────────────────────────────────────────────────────
+
+function PdfLibrary({ docs, onOpen, onDelete, onAdd }: {
+  docs: PdfMeta[]; onOpen: (doc: PdfMeta) => void
+  onDelete: (doc: PdfMeta) => void; onAdd: () => void
 }) {
   const navigate = useNavigate()
-
   return (
     <div className="pdfquiz-page">
       <header className="page-header">
@@ -57,11 +115,7 @@ function PdfLibrary({
         ) : (
           <div className="pdf-library-list">
             {docs.map(doc => (
-              <div
-                key={doc.id}
-                className="card pdf-library-card"
-                onClick={() => onOpen(doc)}
-              >
+              <div key={doc.id} className="card pdf-library-card" onClick={() => onOpen(doc)}>
                 <span className="pdf-card-icon">📄</span>
                 <div className="pdf-card-info">
                   <span className="pdf-card-name">{doc.name}</span>
@@ -69,21 +123,13 @@ function PdfLibrary({
                     {doc.pages > 0 ? `${doc.pages} pages · ` : ''}{fmtSize(doc.size)}
                   </span>
                 </div>
-                <button
-                  className="pdf-card-delete"
-                  aria-label="Delete"
-                  onClick={e => { e.stopPropagation(); onDelete(doc) }}
-                >
-                  🗑
-                </button>
+                <button className="pdf-card-delete" aria-label="Delete"
+                  onClick={e => { e.stopPropagation(); onDelete(doc) }}>🗑</button>
               </div>
             ))}
           </div>
         )}
-
-        <button className="pdf-add-btn" onClick={onAdd}>
-          + Add PDF
-        </button>
+        <button className="pdf-add-btn" onClick={onAdd}>+ Add PDF</button>
       </div>
     </div>
   )
@@ -91,21 +137,16 @@ function PdfLibrary({
 
 // ─── Viewer screen ────────────────────────────────────────────────────────────
 
-function PdfViewer({
-  docId,
-  data,
-  name,
-  onBack,
-  onPagesLoaded,
-}: {
-  docId: number
-  data:  ArrayBuffer
-  name:  string
-  onBack: () => void
-  onPagesLoaded: (id: number, pages: number) => void
+function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
+  docId: number; data: ArrayBuffer; name: string
+  onBack: () => void; onPagesLoaded: (id: number, pages: number) => void
 }) {
   const [numPages,    setNumPages]    = useState(0)
   const [renderScale, setRenderScale] = useState(1.0)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notes,       setNotes]       = useState<PdfNote[]>([])
+  const [creating,    setCreating]    = useState<number | null>(null)
+  const [flashcard,   setFlashcard]   = useState<PdfNote | null>(null)
 
   const viewerRef      = useRef<HTMLDivElement>(null)
   const contentRef     = useRef<HTMLDivElement>(null)
@@ -113,8 +154,9 @@ function PdfViewer({
   const pendingScroll       = useRef<{ left: number; top: number } | null>(null)
   const pendingResizeScroll = useRef<{ left: number; top: number } | null>(null)
   const prevViewerWidth     = useRef(window.innerWidth)
-
   const [viewerWidth, setViewerWidth] = useState(window.innerWidth)
+
+  useEffect(() => { listNotes(docId).then(setNotes) }, [docId])
 
   useEffect(() => {
     const obs = new ResizeObserver(([e]) => {
@@ -165,10 +207,7 @@ function PdfViewer({
     document.addEventListener('gesturestart',  blockGesture, { passive: false })
     document.addEventListener('gesturechange', blockGesture, { passive: false })
 
-    let startDist  = 0
-    let startMidX  = 0
-    let startMidY  = 0
-    let pinchRatio = 1.0
+    let startDist = 0, startMidX = 0, startMidY = 0, pinchRatio = 1.0
 
     const getDist = (t: TouchList) =>
       Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
@@ -184,45 +223,35 @@ function PdfViewer({
     const onTouchMove = (e: TouchEvent) => {
       if (startDist <= 0 || e.touches.length < 2) return
       e.preventDefault()
-
       const rawRatio = getDist(e.touches) / startDist
       const total    = committedScale.current * rawRatio
       pinchRatio = Math.max(1.0, Math.min(3.0, total)) / committedScale.current
-
       const rect    = viewer.getBoundingClientRect()
       const originX = (startMidX - rect.left) + viewer.scrollLeft
       const originY = (startMidY - rect.top)  + viewer.scrollTop
-
       content.style.transformOrigin = `${originX}px ${originY}px`
       content.style.transform       = `scale(${pinchRatio})`
     }
 
     const onTouchEnd = (e: TouchEvent) => {
       if (startDist <= 0 || e.touches.length >= 2) return
-
       const rect = viewer.getBoundingClientRect()
       const cx = startMidX - rect.left
       const cy = startMidY - rect.top
-
       const targetLeft = viewer.scrollLeft * pinchRatio + cx * (pinchRatio - 1)
       const targetTop  = viewer.scrollTop  * pinchRatio + cy * (pinchRatio - 1)
-
-      content.style.transform       = ''
+      content.style.transform = ''
       content.style.transformOrigin = ''
-
       const newScale = Math.max(1.0, Math.min(3.0, committedScale.current * pinchRatio))
       committedScale.current = newScale
       pendingScroll.current  = { left: targetLeft, top: targetTop }
       setRenderScale(newScale)
-
-      startDist  = 0
-      pinchRatio = 1.0
+      startDist = 0; pinchRatio = 1.0
     }
 
     viewer.addEventListener('touchstart', onTouchStart, { passive: true  })
     viewer.addEventListener('touchmove',  onTouchMove,  { passive: false })
     viewer.addEventListener('touchend',   onTouchEnd,   { passive: true  })
-
     return () => {
       viewer.removeEventListener('touchstart', onTouchStart)
       viewer.removeEventListener('touchmove',  onTouchMove)
@@ -232,6 +261,27 @@ function PdfViewer({
     }
   }, [])
 
+  const handleSidebarTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!viewerRef.current) return
+    const rect = viewerRef.current.getBoundingClientRect()
+    const yPos = e.clientY - rect.top + viewerRef.current.scrollTop
+    setCreating(yPos)
+  }
+
+  const handleSaveNote = async (q: string, a: string) => {
+    if (creating === null) return
+    const note = await saveNote(docId, creating, q, a)
+    setNotes(prev => [...prev, note])
+    setCreating(null)
+  }
+
+  const handleDeleteNote = async (note: PdfNote) => {
+    await deleteNote(note.id)
+    setNotes(prev => prev.filter(n => n.id !== note.id))
+  }
+
+  const effectiveWidth = sidebarOpen ? viewerWidth - SIDEBAR_W : viewerWidth
+
   return (
     <div className="pdfquiz-page">
       <header className="page-header">
@@ -239,32 +289,62 @@ function PdfViewer({
           <button className="back-btn" onClick={onBack}>‹ Library</button>
           <span className="page-header-title">{name}</span>
         </div>
-        <HeaderRight />
+        <HeaderRight options={close => (
+          <button className="header-toast-item"
+            onClick={() => { setSidebarOpen(v => !v); close() }}>
+            {sidebarOpen ? '✕ Hide notes' : '📝 Notes'}
+          </button>
+        )} />
       </header>
 
       <div className="pdfquiz-viewer" ref={viewerRef}>
-        <div ref={contentRef} className="pdfquiz-content">
-          <Document
-            file={data}
-            onLoadSuccess={({ numPages: n }) => {
-              setNumPages(n)
-              onPagesLoaded(docId, n)
-            }}
-            loading={<div className="pdfquiz-loading">Loading…</div>}
-          >
-            {Array.from({ length: numPages }, (_, i) => (
-              <div key={i} className="pdfquiz-page-wrap">
-                <Page
-                  pageNumber={i + 1}
-                  width={viewerWidth * renderScale}
-                  renderAnnotationLayer={false}
-                  renderTextLayer={true}
+        <div className="pdfquiz-row">
+          <div ref={contentRef} className="pdfquiz-content">
+            <Document
+              file={data}
+              onLoadSuccess={({ numPages: n }) => { setNumPages(n); onPagesLoaded(docId, n) }}
+              loading={<div className="pdfquiz-loading">Loading…</div>}
+            >
+              {Array.from({ length: numPages }, (_, i) => (
+                <div key={i} className="pdfquiz-page-wrap">
+                  <Page
+                    pageNumber={i + 1}
+                    width={effectiveWidth * renderScale}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={true}
+                  />
+                </div>
+              ))}
+            </Document>
+          </div>
+
+          {sidebarOpen && (
+            <div className="pdf-sidebar" onClick={handleSidebarTap}>
+              {notes.map(note => (
+                <button
+                  key={note.id}
+                  className="pdf-note-pin"
+                  style={{ top: note.yPos }}
+                  title={note.question}
+                  onClick={e => { e.stopPropagation(); setFlashcard(note) }}
+                  onContextMenu={e => {
+                    e.preventDefault(); e.stopPropagation()
+                    if (confirm('Delete this note?')) handleDeleteNote(note)
+                  }}
                 />
-              </div>
-            ))}
-          </Document>
+              ))}
+            </div>
+          )}
         </div>
       </div>
+
+      {creating !== null && (
+        <NoteForm onSave={handleSaveNote} onCancel={() => setCreating(null)} />
+      )}
+
+      {flashcard && (
+        <Flashcard note={flashcard} onClose={() => setFlashcard(null)} />
+      )}
     </div>
   )
 }
@@ -274,24 +354,16 @@ function PdfViewer({
 export default function PdfQuiz() {
   const [docs,   setDocs]   = useState<PdfMeta[]>([])
   const [viewer, setViewer] = useState<{ docId: number; data: ArrayBuffer; name: string } | null>(null)
-
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Load metadata list on mount
   useEffect(() => {
-    listPdfs().then(list =>
-      setDocs(list.sort((a, b) => b.addedAt - a.addedAt))
-    )
+    listPdfs().then(list => setDocs(list.sort((a, b) => b.addedAt - a.addedAt)))
   }, [])
-
-  const handleAdd = () => fileRef.current?.click()
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
-    // Reset input so same file can be re-added
     e.target.value = ''
-
     const data = await f.arrayBuffer()
     const id   = await savePdf(f.name, f.size, data)
     const meta: PdfMeta = { id, name: f.name, size: f.size, pages: 0, addedAt: Date.now() }
@@ -329,17 +401,12 @@ export default function PdfQuiz() {
           docs={docs}
           onOpen={handleOpen}
           onDelete={handleDelete}
-          onAdd={handleAdd}
+          onAdd={() => fileRef.current?.click()}
         />
       )}
 
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".pdf"
-        onChange={handleFileChange}
-        style={{ display: 'none' }}
-      />
+      <input ref={fileRef} type="file" accept=".pdf"
+        onChange={handleFileChange} style={{ display: 'none' }} />
     </>
   )
 }
