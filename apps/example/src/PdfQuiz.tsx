@@ -21,18 +21,46 @@ export default function PdfQuiz() {
   const fileRef        = useRef<HTMLInputElement>(null)
   const viewerRef      = useRef<HTMLDivElement>(null)
   const contentRef     = useRef<HTMLDivElement>(null)
-  const committedScale = useRef(1.0)
-  const pendingScroll  = useRef<{ left: number; top: number } | null>(null)
+  const committedScale      = useRef(1.0)
+  const pendingScroll       = useRef<{ left: number; top: number } | null>(null)
+  const pendingResizeScroll = useRef<{ left: number; top: number } | null>(null)
+  const prevViewerWidth     = useRef(window.innerWidth)
 
   const [viewerWidth, setViewerWidth] = useState(window.innerWidth)
 
   useEffect(() => {
-    const obs = new ResizeObserver(([e]) => setViewerWidth(e.contentRect.width))
+    const obs = new ResizeObserver(([e]) => {
+      const newWidth = e.contentRect.width
+      const oldWidth = prevViewerWidth.current
+      // Capture scroll BEFORE setViewerWidth triggers a re-render, then scale it.
+      // Page heights are proportional to page width, so all distances scale by the same ratio.
+      if (newWidth !== oldWidth && viewerRef.current) {
+        const ratio = newWidth / oldWidth
+        pendingResizeScroll.current = {
+          left: viewerRef.current.scrollLeft * ratio,
+          top:  viewerRef.current.scrollTop  * ratio,
+        }
+      }
+      prevViewerWidth.current = newWidth
+      setViewerWidth(newWidth)
+    })
     if (viewerRef.current) obs.observe(viewerRef.current)
     return () => obs.disconnect()
   }, [])
 
-  // Apply the scroll correction AFTER the re-render has updated the DOM dimensions
+  // After a width change re-render, restore the scaled scroll position
+  useEffect(() => {
+    const target = pendingResizeScroll.current
+    if (!target || !viewerRef.current) return
+    pendingResizeScroll.current = null
+    requestAnimationFrame(() => {
+      if (!viewerRef.current) return
+      viewerRef.current.scrollLeft = target.left
+      viewerRef.current.scrollTop  = target.top
+    })
+  }, [viewerWidth])
+
+  // After a pinch-zoom re-render, restore the pinch-corrected scroll position
   useEffect(() => {
     const target = pendingScroll.current
     if (!target || !viewerRef.current) return
