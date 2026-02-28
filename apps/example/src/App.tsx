@@ -3,12 +3,14 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
 import { ThemeProvider, useTheme } from './ThemeContext'
 import RainfallDistribution from './RainfallDistribution'
+import PdfQuiz from './PdfQuiz'
 
 // ── App registry ────────────────────────────────────────────
 const APP_LIST = [
   { name: 'Timer',    path: '/timer',    icon: '⏱', gradient: 'linear-gradient(145deg, #2a6898, #1a3a5a)' },
   { name: 'Notes',    path: '/notes',    icon: '📋', gradient: 'linear-gradient(145deg, #2a7855, #1a4a32)' },
   { name: 'Rainfall', path: '/rainfall', icon: '🌧', gradient: 'linear-gradient(145deg, #3a6888, #7eb8d4)' },
+  { name: 'PDF',      path: '/pdf',      icon: '📄', gradient: 'linear-gradient(145deg, #5a3a8a, #2a1a4a)' },
 ]
 
 // ── Shared page shell ────────────────────────────────────────
@@ -288,6 +290,7 @@ export default function App() {
           <Route path="/timer"     element={<Timer />} />
           <Route path="/notes"     element={<Notes />} />
           <Route path="/rainfall"  element={<RainfallDistribution />} />
+          <Route path="/pdf"       element={<PdfQuiz />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
