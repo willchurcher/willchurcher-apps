@@ -3,7 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { useNavigate } from 'react-router-dom'
-import { useTheme } from './ThemeContext'
+import { HeaderRight } from './HeaderRight'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -12,12 +12,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 export default function PdfQuiz() {
   const navigate = useNavigate()
-  const { toggle } = useTheme()
 
   const [file, setFile]           = useState<File | null>(null)
   const [numPages, setNumPages]   = useState(0)
   const [renderScale, setRenderScale] = useState(1.0)
-  const [showOptions, setShowOptions] = useState(false)
 
   const fileRef        = useRef<HTMLInputElement>(null)
   const viewerRef      = useRef<HTMLDivElement>(null)
@@ -160,18 +158,6 @@ export default function PdfQuiz() {
     }
   }, [])
 
-  // Close the options toast when the user taps anywhere outside it
-  useEffect(() => {
-    if (!showOptions) return
-    const close = () => setShowOptions(false)
-    document.addEventListener('touchstart', close, { once: true })
-    document.addEventListener('mousedown',  close, { once: true })
-    return () => {
-      document.removeEventListener('touchstart', close)
-      document.removeEventListener('mousedown',  close)
-    }
-  }, [showOptions])
-
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (f) { setFile(f); setNumPages(0) }
@@ -184,30 +170,16 @@ export default function PdfQuiz() {
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
           <span className="page-header-title">PDF Viewer</span>
         </div>
-        <div className="pdfquiz-header-right">
-          <div className="pdfquiz-options-wrap">
-            <button
-              className="pdfquiz-icon-btn"
-              onClick={e => { e.stopPropagation(); setShowOptions(v => !v) }}
-            >
-              ···
+        <HeaderRight options={close => (
+          <>
+            <button className="header-toast-item" onClick={() => { fileRef.current?.click(); close() }}>
+              📄 Open PDF
             </button>
-            {showOptions && (
-              <div className="pdfquiz-toast" onClick={e => e.stopPropagation()}>
-                <button
-                  className="pdfquiz-toast-item"
-                  onClick={() => { fileRef.current?.click(); setShowOptions(false) }}
-                >
-                  📄 Open PDF
-                </button>
-                {numPages > 0 && (
-                  <div className="pdfquiz-toast-info">{numPages} pages</div>
-                )}
-              </div>
+            {numPages > 0 && (
+              <div className="header-toast-info">{numPages} pages</div>
             )}
-          </div>
-          <button className="pdfquiz-icon-btn" onClick={toggle}>💡</button>
-        </div>
+          </>
+        )} />
       </header>
 
       <div className="pdfquiz-viewer" ref={viewerRef}>
