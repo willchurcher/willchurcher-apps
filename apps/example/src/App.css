@@ -547,6 +547,11 @@ a { color: inherit; text-decoration: none; }
   text-transform: uppercase;
 }
 
+.pdfquiz-page-wrap {
+  width: 100%;
+  border-bottom: 2px solid var(--border);
+}
+
 .pdfquiz-bar {
   display: flex;
   align-items: center;
