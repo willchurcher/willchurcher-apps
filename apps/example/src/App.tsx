@@ -1,23 +1,32 @@
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
+import { ThemeProvider, useTheme } from './ThemeContext'
+import RainfallDistribution from './RainfallDistribution'
 
 // ── App registry ────────────────────────────────────────────
 const APP_LIST = [
-  { name: 'Timer', path: '/timer', icon: '⏱', gradient: 'linear-gradient(145deg, #e8705a, #b84030)' },
-  { name: 'Notes', path: '/notes', icon: '📋', gradient: 'linear-gradient(145deg, #c9a84c, #8a6220)' },
+  { name: 'Timer',    path: '/timer',    icon: '⏱', gradient: 'linear-gradient(145deg, #2a6898, #1a3a5a)' },
+  { name: 'Notes',    path: '/notes',    icon: '📋', gradient: 'linear-gradient(145deg, #2a7855, #1a4a32)' },
+  { name: 'Rainfall', path: '/rainfall', icon: '🌧', gradient: 'linear-gradient(145deg, #3a6888, #7eb8d4)' },
 ]
 
 // ── Shared page shell ────────────────────────────────────────
 function AppPage({ title, children }: { title: string; children: React.ReactNode }) {
   const navigate = useNavigate()
+  const { theme, toggle } = useTheme()
   return (
     <div className="page">
       <header className="page-header">
-        <button className="back-btn" onClick={() => navigate('/')}>
-          ‹ Home
+        <div className="page-header-left">
+          <button className="back-btn" onClick={() => navigate('/')}>
+            ‹ Home
+          </button>
+          <span className="page-header-title">{title}</span>
+        </div>
+        <button className="theme-toggle" onClick={toggle}>
+          {theme === 'dark' ? '☀ light' : '◑ dark'}
         </button>
-        <span className="page-header-title">{title}</span>
       </header>
       <div className="page-body">{children}</div>
     </div>
@@ -26,18 +35,26 @@ function AppPage({ title, children }: { title: string; children: React.ReactNode
 
 // ── Home ─────────────────────────────────────────────────────
 function Home() {
+  const { theme, toggle } = useTheme()
   return (
     <div className="home">
-      <p className="home-title">Apps</p>
-      <div className="app-grid">
-        {APP_LIST.map(app => (
-          <Link key={app.path} to={app.path} className="app-tile">
-            <div className="app-icon" style={{ background: app.gradient }}>
-              {app.icon}
-            </div>
-            <span className="app-label">{app.name}</span>
-          </Link>
-        ))}
+      <header className="page-header">
+        <span className="page-header-title">Apps</span>
+        <button className="theme-toggle" onClick={toggle}>
+          {theme === 'dark' ? '☀ light' : '◑ dark'}
+        </button>
+      </header>
+      <div className="home-content">
+        <div className="app-grid">
+          {APP_LIST.map(app => (
+            <Link key={app.path} to={app.path} className="app-tile">
+              <div className="app-icon" style={{ background: app.gradient }}>
+                {app.icon}
+              </div>
+              <span className="app-label">{app.name}</span>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -45,8 +62,8 @@ function Home() {
 
 // ── Wheel picker ──────────────────────────────────────────────
 const ITEM_H  = 44
-const WHEEL_H = ITEM_H * 5       // 5 items visible
-const PAD     = (WHEEL_H - ITEM_H) / 2  // top/bottom padding so first/last items can centre
+const WHEEL_H = ITEM_H * 5
+const PAD     = (WHEEL_H - ITEM_H) / 2
 
 const H_ITEMS = Array.from({ length: 24 }, (_, i) => i)
 const M_ITEMS = Array.from({ length: 60 }, (_, i) => i)
@@ -184,7 +201,7 @@ function Timer() {
                   <circle
                     className="ring-progress"
                     cx="100" cy="100" r={r}
-                    stroke={done ? '#5a9e6a' : '#e8705a'}
+                    stroke={done ? '#5a9e6a' : 'var(--accent)'}
                     strokeDasharray={circ}
                     strokeDashoffset={offset}
                   />
@@ -264,12 +281,15 @@ function Notes() {
 // ── Router ───────────────────────────────────────────────────
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/"          element={<Home />} />
-        <Route path="/timer"     element={<Timer />} />
-        <Route path="/notes"     element={<Notes />} />
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/"          element={<Home />} />
+          <Route path="/timer"     element={<Timer />} />
+          <Route path="/notes"     element={<Notes />} />
+          <Route path="/rainfall"  element={<RainfallDistribution />} />
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
