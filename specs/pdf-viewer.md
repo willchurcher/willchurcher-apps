@@ -1,145 +1,157 @@
 # PDF Viewer Spec
-
-**Route**: `/pdf`
-**Files**: `src/PdfQuiz.tsx`, `src/pdfStorage.ts`
-**Library**: `react-pdf` (pdfjs worker auto-configured)
+> Source of truth: `src/PdfQuiz.tsx`, `src/pdfStorage.ts`
+> Route: `/pdf` — component: `PdfQuiz` (default export)
 
 ---
 
-## Screens
-
-### 1. Library Screen (default)
-Shown when no PDF is open.
-
-**Header**: `‹ Home` | `PDF VIEWER` | `HeaderRight` (no options → "No options")
-
-**Body**:
-- Scrollable list of saved PDF cards (newest first)
-- Each card: 📄 icon · filename · page count · file size · 🗑 delete button
-  - Tap card → open viewer
-  - Tap 🗑 → delete PDF and all its notes from IndexedDB
-- If no PDFs: empty state with 📄 icon and "No saved PDFs yet"
-- `+ Add PDF` button at bottom → triggers hidden `<input type="file" accept=".pdf">`
-
-**On file select**:
-1. Read as `ArrayBuffer`
-2. Save to IndexedDB (metadata + data separate stores)
-3. Navigate directly to viewer
+## State machine
+Two screens toggled by `viewer` state in root `PdfQuiz`:
+- `viewer === null` → Library screen (`PdfLibrary`)
+- `viewer !== null` → Viewer screen (`PdfViewer`)
 
 ---
 
-### 2. Viewer Screen
-Shown when a PDF is open.
+## Library screen (`PdfLibrary`)
 
-**Header**: `‹ Library` | `{filename}` | `HeaderRight` with options:
-- `📝 Notes` / `✕ Hide notes` — toggles sidebar
+**Header:** `‹ Home` → navigate(`/`) | title: `PDF VIEWER` | `<HeaderRight />` (no options prop → shows "No options")
 
-**Body layout** (flex row inside scroll container):
+**Body (`.pdf-library`):** scrollable flex column, padding 1rem
+
+**Empty state:** 📄 icon + "No saved PDFs yet"
+
+**Doc list:** sorted newest-first (`addedAt` desc). Each `.card.pdf-library-card` (flex row):
+- 📄 icon
+- Name (truncated) + meta: `"{n} pages · "` (omitted if `pages === 0`) + formatted size (`KB` below 1 MB, `MB` above)
+- 🗑 button — `stopPropagation`, calls `deletePdf(doc.id)`, removes from state
+- Tap card body → `loadPdfData(doc.id)` → set `viewer` state → opens viewer
+
+**`+ Add PDF` button** — triggers hidden `<input type="file" accept=".pdf">`.
+
+**On file selected:**
+1. `f.arrayBuffer()`
+2. `savePdf(f.name, f.size, data)` → returns `id`
+3. Push `{ id, name, size, pages: 0, addedAt: Date.now() }` to docs state
+4. Immediately set viewer state (opens viewer without returning to library)
+
+---
+
+## Viewer screen (`PdfViewer`)
+
+**Header:** `‹ Library` → `onBack()` | title: filename | `HeaderRight` with one option:
+- `📝 Notes` (sidebar closed) / `✕ Hide notes` (sidebar open) — toggles `sidebarOpen`, calls `close()`
+
+**Layout:**
 ```
-[ PDF content (flex: 1) ] [ Sidebar (44px, optional) ]
+.pdfquiz-viewer (overflow: auto both, flex: 1)
+  .pdfquiz-row (display: flex, align-items: stretch, min-height: 100%)
+    .pdfquiz-content (flex: 1, min-width: 0)   ← PDF pages
+    .pdf-sidebar (width: 44px)                  ← only when sidebarOpen
 ```
 
-**PDF rendering**:
-- Uses `react-pdf` `<Document>` + `<Page>` components
-- All pages rendered vertically (no pagination)
-- `width = effectiveWidth * renderScale`
-  - `effectiveWidth = viewerWidth - 44` when sidebar open, else `viewerWidth`
-  - `renderScale` starts at 1.0; updated by pinch-to-zoom (range: 1.0–3.0)
-- `renderAnnotationLayer: false`, `renderTextLayer: true`
+**`effectiveWidth`** = `sidebarOpen ? viewerWidth - 44 : viewerWidth`
+- `viewerWidth` tracked by `ResizeObserver` on `.pdfquiz-viewer`
 
-**Pinch-to-zoom**:
-- Two-finger touch → visual CSS `scale()` transform on content during gesture
-- On lift: commits scale, re-renders pages at new width, restores scroll position
-- iOS `gesturestart`/`gesturechange` blocked to prevent conflict
+**PDF rendering:**
+- `react-pdf` `<Document file={data}>` where `data` is `ArrayBuffer`
+- All pages rendered vertically, one after another in `.pdfquiz-page-wrap` divs
+- `<Page width={effectiveWidth * renderScale} renderAnnotationLayer={false} renderTextLayer={true} />`
+- On load success: `setNumPages(n)` + `onPagesLoaded(docId, n)` (which calls `updatePages` in IndexedDB)
 
-**Resize handling**:
-- `ResizeObserver` on `.pdfquiz-viewer`
-- Scroll position scaled by `newWidth / oldWidth` on resize
+**Pinch-to-zoom** (touch listeners on `.pdfquiz-viewer`):
+- Scale range: 1.0–3.0 (`renderScale` state, `committedScale` ref)
+- During gesture: CSS `scale()` + `transformOrigin` applied to `.pdfquiz-content` (visual only)
+- On lift (`touchend`): clear transform, commit new scale, compute corrected scroll position, `setRenderScale` triggers re-render at new pixel width
+- `gesturestart` / `gesturechange` blocked on `document` (`passive: false`) to prevent iOS conflicts
 
----
+**Resize handling:**
+- `ResizeObserver` captures `newWidth / oldWidth` ratio, scales `scrollLeft` and `scrollTop` proportionally before re-render (`pendingResizeScroll` ref + `requestAnimationFrame`)
 
-## Sidebar
-
-**Toggle**: `···` menu → "📝 Notes" / "✕ Hide notes"
-
-**Appearance**:
-- 44px wide strip on the right
-- Same scroll container as PDF — scrolls together
-- `border-left: 1px solid var(--border)`; `cursor: crosshair`
-
-**Note pins**:
-- Rendered as small filled circles at `top: yPos * (effectiveWidth / note.savedWidth)`
-  - Scaled so pins track correctly after viewport width changes (orientation, resize)
-- Tap pin → opens **Flashcard**
-- Long-press / right-click pin → confirm delete
-
-**Creating a note**:
-- Tap empty space in sidebar → compute `yPos = clientY - viewerRect.top + scrollTop`
-- Opens **Note Form** modal
+**Notes loaded:** `listNotes(docId)` on mount, stored in `notes` state.
 
 ---
 
-## Note Form (two-stage modal)
+## Sidebar (`.pdf-sidebar`)
 
-Reuses `.fc-card` / `.fc-face` styles (same card as flashcard).
+Width: 44px. `position: relative; overflow: visible; cursor: crosshair`.
+`border-left: 1px solid var(--border); background: var(--surface)`.
+Shares the same scroll container as the PDF — no JS sync needed.
 
-**Stage 1 — Q badge**:
-- Textarea: "Enter your question…"
-- `Cancel` | `Next →` (disabled until text entered)
+**Tap empty space:**
+```
+yPos = e.clientY - viewerRef.getBoundingClientRect().top + viewerRef.scrollTop
+```
+Sets `creating = yPos`, opens NoteForm.
 
-**Stage 2 — A badge**:
-- Textarea: "Enter the answer…"
-- `Cancel` | `Save` (disabled until text entered)
-
-Tap backdrop → cancel.
+**Note pins (`.pdf-note-pin`):**
+- 14px filled circle, `background: var(--accent)`, `border: 2px solid var(--bg)`
+- `position: absolute; left: 50%; transform: translate(-50%, -50%)`
+- `top: note.yPos * (effectiveWidth / (note.savedWidth ?? effectiveWidth))` — scales with viewport width so pins stay aligned after orientation change
+- Tap → `setFlashcard(note)`
+- Right-click / `contextMenu` → `confirm('Delete this note?')` → `deleteNote(note.id)`, remove from state
 
 ---
 
-## Flashcard
+## NoteForm modal (two stages)
 
-Full-screen overlay (`position: fixed; inset: 0; padding: 20px`).
+Reuses `.fc-overlay` / `.fc-card` / `.fc-face` / `.fc-badge` CSS (same as Flashcard).
 
-**Stage 1 — Q side**:
+**Stage `'q'` (default):**
+- Q badge (accent colour)
+- `<textarea autoFocus placeholder="Enter your question…">`
+- Buttons: `Cancel` | `Next →` (disabled while textarea empty)
+- `Next →` → sets stage to `'a'`
+
+**Stage `'a'`:**
+- A badge (muted colour)
+- `<textarea autoFocus placeholder="Enter the answer…">`
+- Buttons: `Cancel` | `Save` (disabled while textarea empty)
+- `Save` → calls `onSave(q, a)` → `saveNote(docId, yPos, effectiveWidth, q, a)` → adds to `notes` state, closes form
+
+**Tap backdrop (`.fc-overlay`)** → `onCancel()` → `setCreating(null)`
+
+---
+
+## Flashcard modal
+
+**Overlay (`.fc-overlay`):** `position: fixed; inset: 0; padding: 20px; background: rgba(0,0,0,0.65)`.
+`onClick={onClose}` — tap outside = close.
+
+**Card (`.fc-card`):** `onClick={e => { e.stopPropagation(); setFlipped(v => !v) }}` — tap card = toggle flip.
+
+**Q side (`.fc-face-q`):**
 - Q badge (accent colour)
 - Question text
 - Hint: "tap card to reveal answer"
-- Tap card → flip to A side
 
-**Stage 2 — A side**:
-- A badge (muted colour)
+**A side (`.fc-face-a`):**
+- A badge (muted colour, `--border-hi` bg)
 - Answer text
 - Hint: "tap outside to close"
-- Tap card → flip back to Q side
-- Tap backdrop → close
+
+Flipping is a toggle — tap again to go back to Q. Tap backdrop to close at any time.
 
 ---
 
 ## Storage (`src/pdfStorage.ts`)
 
-**DB**: `pdf-library` v2 (IndexedDB)
+**DB name:** `pdf-library` **version:** 2
 
-| Store | Key | Fields |
+| Store | keyPath | autoIncrement | Extra |
+|---|---|---|---|
+| `pdf-meta` | `id` | yes | — |
+| `pdf-data` | `id` | no | same id as meta |
+| `pdf-notes` | `id` | yes | index on `docId` |
+
+**`PdfMeta`:** `{ id, name, size, pages, addedAt }`
+**`PdfNote`:** `{ id, docId, yPos, savedWidth, question, answer, createdAt }`
+
+| Function | Signature | Notes |
 |---|---|---|
-| `pdf-meta` | `id` (auto) | `name`, `size`, `pages`, `addedAt` |
-| `pdf-data` | `id` (same as meta) | `data: ArrayBuffer` |
-| `pdf-notes` | `id` (auto) | `docId`, `yPos`, `savedWidth`, `question`, `answer`, `createdAt` |
-
-`pdf-notes` has an index on `docId`.
-`pdf-meta` and `pdf-data` are separate so listing PDFs doesn't load binary data.
-
-**API**:
-- `listPdfs()` — metadata list only
-- `savePdf(name, size, data)` → `id`
-- `loadPdfData(id)` → `ArrayBuffer`
-- `updatePages(id, pages)` — written on first successful render
-- `deletePdf(id)` — deletes both meta and data stores
-- `listNotes(docId)` → `PdfNote[]`
-- `saveNote(docId, yPos, savedWidth, question, answer)` → `PdfNote`
-- `deleteNote(id)`
-
----
-
-## Planned / Future
-- AI-assisted note generation (Claude API): generate Q&A from surrounding PDF page text
-- Note editing (tap-hold pin → edit form)
-- Note count badge on library card
+| `listPdfs` | `() → PdfMeta[]` | metadata only, no ArrayBuffer |
+| `savePdf` | `(name, size, data) → id` | writes meta + data separately |
+| `loadPdfData` | `(id) → ArrayBuffer` | loaded only when opening a doc |
+| `updatePages` | `(id, pages)` | called on first successful render |
+| `deletePdf` | `(id)` | deletes both meta and data stores |
+| `listNotes` | `(docId) → PdfNote[]` | via docId index |
+| `saveNote` | `(docId, yPos, savedWidth, q, a) → PdfNote` | |
+| `deleteNote` | `(id)` | |
