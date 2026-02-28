@@ -7,28 +7,32 @@ interface HeaderRightProps {
 
 export function HeaderRight({ options }: HeaderRightProps) {
   const [open, setOpen] = useState(false)
+  const [toastPos, setToastPos] = useState({ top: 0, right: 0 })
   const { toggle } = useTheme()
   const toastRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
   const close = () => setOpen(false)
 
+  const handleToggle = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setToastPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+    }
+    setOpen(v => !v)
+  }
+
   useEffect(() => {
     if (!open) return
 
     const absorb = (e: Event) => {
-      // Let the ··· button handle its own toggle
       if (btnRef.current?.contains(e.target as Node)) return
-      // Let clicks inside the toast reach their targets
       if (toastRef.current?.contains(e.target as Node)) return
-      // Absorb everything else — no click-through
       e.preventDefault()
       e.stopPropagation()
       setOpen(false)
     }
 
-    // touchstart + preventDefault prevents the synthesised click on iOS
     document.addEventListener('touchstart', absorb, { passive: false, capture: true })
-    // click capture blocks click-through on desktop
     document.addEventListener('click', absorb, { capture: true })
     return () => {
       document.removeEventListener('touchstart', absorb, { capture: true })
@@ -39,11 +43,15 @@ export function HeaderRight({ options }: HeaderRightProps) {
   return (
     <div className="header-right">
       <div className="header-options-anchor">
-        <button ref={btnRef} className="icon-btn" onClick={() => setOpen(v => !v)}>
+        <button ref={btnRef} className="icon-btn" onClick={handleToggle}>
           ···
         </button>
         {open && (
-          <div ref={toastRef} className="header-toast">
+          <div
+            ref={toastRef}
+            className="header-toast"
+            style={{ position: 'fixed', top: toastPos.top, right: toastPos.right }}
+          >
             {options
               ? options(close)
               : <span className="header-toast-no-options">No options</span>}
