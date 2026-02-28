@@ -38,20 +38,23 @@ function Home() {
   const { theme, toggle } = useTheme()
   return (
     <div className="home">
-      <div className="home-header">
+      <header className="page-header">
+        <span className="page-header-title">Apps</span>
         <button className="theme-toggle" onClick={toggle}>
           {theme === 'dark' ? '☀ light' : '◑ dark'}
         </button>
-      </div>
-      <div className="app-grid">
-        {APP_LIST.map(app => (
-          <Link key={app.path} to={app.path} className="app-tile">
-            <div className="app-icon" style={{ background: app.gradient }}>
-              {app.icon}
-            </div>
-            <span className="app-label">{app.name}</span>
-          </Link>
-        ))}
+      </header>
+      <div className="home-content">
+        <div className="app-grid">
+          {APP_LIST.map(app => (
+            <Link key={app.path} to={app.path} className="app-tile">
+              <div className="app-icon" style={{ background: app.gradient }}>
+                {app.icon}
+              </div>
+              <span className="app-label">{app.name}</span>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )
