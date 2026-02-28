@@ -5,7 +5,7 @@
 //   pdf-notes — Q&A notes anchored by y-position within a doc
 
 const DB_NAME    = 'pdf-library'
-const DB_VERSION = 2
+const DB_VERSION = 4
 
 export interface PdfMeta {
   id:      number
@@ -36,10 +36,12 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('pdf-data')) {
         db.createObjectStore('pdf-data', { keyPath: 'id' })
       }
-      if (!db.objectStoreNames.contains('pdf-notes')) {
-        const store = db.createObjectStore('pdf-notes', { keyPath: 'id', autoIncrement: true })
-        store.createIndex('docId', 'docId')
+      // v4: clear notes store to purge stale fractional-yPos format from v3
+      if (db.objectStoreNames.contains('pdf-notes')) {
+        db.deleteObjectStore('pdf-notes')
       }
+      const store = db.createObjectStore('pdf-notes', { keyPath: 'id', autoIncrement: true })
+      store.createIndex('docId', 'docId')
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror   = () => reject(req.error)
