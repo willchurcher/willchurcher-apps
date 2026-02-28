@@ -35,50 +35,54 @@ function Flashcard({ note, onClose }: { note: PdfNote; onClose: () => void }) {
   const [flipped, setFlipped] = useState(false)
 
   return (
-    <div className="fc-overlay" onClick={() => flipped ? onClose() : setFlipped(true)}>
-      <div className="fc-card" onClick={e => e.stopPropagation()}>
+    <div className="fc-overlay" onClick={onClose}>
+      <div className="fc-card" onClick={e => { e.stopPropagation(); setFlipped(v => !v) }}>
         <div className={`fc-face ${flipped ? 'fc-face-a' : 'fc-face-q'}`}>
           <span className="fc-badge">{flipped ? 'A' : 'Q'}</span>
           <p className="fc-text">{flipped ? note.answer : note.question}</p>
-          <span className="fc-hint">{flipped ? 'tap outside to close' : 'tap to reveal answer'}</span>
+          <span className="fc-hint">{flipped ? 'tap outside to close' : 'tap card to reveal answer'}</span>
         </div>
       </div>
     </div>
   )
 }
 
-// ─── Note creation form ───────────────────────────────────────────────────────
+// ─── Note creation form (two stages, mirrors flashcard) ──────────────────────
 
 function NoteForm({ onSave, onCancel }: { onSave: (q: string, a: string) => void; onCancel: () => void }) {
+  const [stage, setStage] = useState<'q' | 'a'>('q')
   const [q, setQ] = useState('')
   const [a, setA] = useState('')
 
   return (
-    <div className="fc-overlay" onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
-      <div className="note-form-card" onClick={e => e.stopPropagation()}>
-        <span className="note-form-title">New note</span>
-        <textarea
-          className="note-form-field"
-          placeholder="Question…"
-          value={q}
-          onChange={e => setQ(e.target.value)}
-          rows={3}
-          autoFocus
-        />
-        <textarea
-          className="note-form-field"
-          placeholder="Answer…"
-          value={a}
-          onChange={e => setA(e.target.value)}
-          rows={4}
-        />
-        <div className="note-form-actions">
-          <button className="note-form-btn note-form-cancel" onClick={onCancel}>Cancel</button>
-          <button
-            className="note-form-btn note-form-save"
-            disabled={!q.trim() || !a.trim()}
-            onClick={() => onSave(q.trim(), a.trim())}
-          >Save</button>
+    <div className="fc-overlay" onClick={onCancel}>
+      <div className="fc-card" onClick={e => e.stopPropagation()}>
+        <div className={`fc-face ${stage === 'a' ? 'fc-face-a' : 'fc-face-q'}`}>
+          <span className="fc-badge">{stage === 'q' ? 'Q' : 'A'}</span>
+          <textarea
+            className="note-form-field"
+            placeholder={stage === 'q' ? 'Enter your question…' : 'Enter the answer…'}
+            value={stage === 'q' ? q : a}
+            onChange={e => stage === 'q' ? setQ(e.target.value) : setA(e.target.value)}
+            rows={4}
+            autoFocus
+          />
+          <div className="note-form-actions">
+            <button className="note-form-btn note-form-cancel" onClick={onCancel}>Cancel</button>
+            {stage === 'q' ? (
+              <button
+                className="note-form-btn note-form-save"
+                disabled={!q.trim()}
+                onClick={() => setStage('a')}
+              >Next →</button>
+            ) : (
+              <button
+                className="note-form-btn note-form-save"
+                disabled={!a.trim()}
+                onClick={() => onSave(q.trim(), a.trim())}
+              >Save</button>
+            )}
+          </div>
         </div>
       </div>
     </div>
