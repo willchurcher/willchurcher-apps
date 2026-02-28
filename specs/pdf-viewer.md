@@ -134,7 +134,7 @@ Flipping is a toggle — tap again to go back to Q. Tap backdrop to close at any
 
 ## Storage (`src/pdfStorage.ts`)
 
-**DB name:** `pdf-library` **version:** 2
+**DB name:** `pdf-library` **version:** 4
 
 | Store | keyPath | autoIncrement | Extra |
 |---|---|---|---|
@@ -155,3 +155,47 @@ Flipping is a toggle — tap again to go back to Q. Tap backdrop to close at any
 | `listNotes` | `(docId) → PdfNote[]` | via docId index |
 | `saveNote` | `(docId, yPos, savedWidth, q, a) → PdfNote` | |
 | `deleteNote` | `(id)` | |
+
+---
+
+## Note pin positioning — lessons learned
+
+### What works: pixel yPos + width scaling
+
+`yPos` is stored as **raw pixels** from the top of the scrollable content:
+
+```
+yPos = e.clientY - viewerRect.top + viewer.scrollTop
+```
+
+Pins render at:
+```
+top = yPos * (effectiveWidth / savedWidth)
+```
+
+This works because:
+- `top` is in the same coordinate space as the scroll container, so pins ride with the content naturally when the user scrolls — no JS sync needed.
+- The width ratio corrects for orientation changes: rotating landscape changes `effectiveWidth`, and the PDF content reflows to match, so scaling `yPos` by the same ratio keeps the pin approximately aligned.
+
+### What does NOT work: fractional yPos
+
+Do **not** store `yPos` as a fraction of any height (`absY / containerHeight`), then multiply back on render. Several approaches were tried and all failed:
+
+1. **ResizeObserver on content element** — fires before react-pdf renders, reads 0.
+2. **`requestAnimationFrame` after `[numPages]` effect** — timing still unreliable.
+3. **ResizeObserver on the row container** — same issue, fires too early.
+4. **CSS `%`** — the sidebar is `position: absolute` inside the row, so `top: 30%` is 30% of the row's *visible* height, not the scrollable content height.
+5. **ResizeObserver on `rowRef.clientHeight`** — `clientHeight` is the visible box height, not scroll height. After scrolling, `absY` (which includes `scrollTop`) exceeds `clientHeight`, giving a fraction > 1 and garbage pixel positions.
+
+The core problem: the scrollable content height is only knowable *after* react-pdf finishes rendering all pages, and there is no reliable synchronous hook for that moment. Pixel storage sidesteps the problem entirely.
+
+### DB version history
+
+| Version | Format | Notes |
+|---|---|---|
+| 1 | raw pixel yPos, no savedWidth | no orientation scaling |
+| 2 | pixel yPos + savedWidth | width-ratio scaling added |
+| 3 | fractional yPos (0–1), no savedWidth | broken — pins bunched at top |
+| 4 | pixel yPos + savedWidth (same as v2) | v3 notes purged on upgrade |
+
+**Rule:** bump DB version and delete+recreate the `pdf-notes` store any time the `yPos` format changes. Do not try to migrate — old format values are meaningless in the new format.
