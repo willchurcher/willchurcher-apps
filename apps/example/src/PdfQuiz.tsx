@@ -155,20 +155,7 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
   const pendingResizeScroll = useRef<{ left: number; top: number } | null>(null)
   const prevViewerWidth     = useRef(window.innerWidth)
   const [viewerWidth,       setViewerWidth]       = useState(window.innerWidth)
-  const [contentScrollH,    setContentScrollH]    = useState(0)
-
   useEffect(() => { listNotes(docId).then(setNotes) }, [docId])
-
-  // Keep contentScrollH in sync with the viewer's actual scrollable height.
-  // Observe contentRef (which resizes as react-pdf renders pages) so we react
-  // continuously — not just once per frame after a state change fires.
-  useEffect(() => {
-    const obs = new ResizeObserver(() => {
-      if (viewerRef.current) setContentScrollH(viewerRef.current.scrollHeight)
-    })
-    if (contentRef.current) obs.observe(contentRef.current)
-    return () => obs.disconnect()
-  }, [])
 
   useEffect(() => {
     const obs = new ResizeObserver(([e]) => {
@@ -337,7 +324,7 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
                 <button
                   key={note.id}
                   className="pdf-note-pin"
-                  style={{ top: note.yPos * contentScrollH }}
+                  style={{ top: `${note.yPos * 100}%` }}
                   title={note.question}
                   onClick={e => { e.stopPropagation(); setFlashcard(note) }}
                   onContextMenu={e => {
