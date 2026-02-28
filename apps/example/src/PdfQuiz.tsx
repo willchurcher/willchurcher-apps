@@ -12,11 +12,12 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 export default function PdfQuiz() {
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
+  const { toggle } = useTheme()
 
   const [file, setFile]           = useState<File | null>(null)
   const [numPages, setNumPages]   = useState(0)
   const [renderScale, setRenderScale] = useState(1.0)
+  const [showOptions, setShowOptions] = useState(false)
 
   const fileRef        = useRef<HTMLInputElement>(null)
   const viewerRef      = useRef<HTMLDivElement>(null)
@@ -159,6 +160,18 @@ export default function PdfQuiz() {
     }
   }, [])
 
+  // Close the options toast when the user taps anywhere outside it
+  useEffect(() => {
+    if (!showOptions) return
+    const close = () => setShowOptions(false)
+    document.addEventListener('touchstart', close, { once: true })
+    document.addEventListener('mousedown',  close, { once: true })
+    return () => {
+      document.removeEventListener('touchstart', close)
+      document.removeEventListener('mousedown',  close)
+    }
+  }, [showOptions])
+
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (f) { setFile(f); setNumPages(0) }
@@ -171,9 +184,30 @@ export default function PdfQuiz() {
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
           <span className="page-header-title">PDF Viewer</span>
         </div>
-        <button className="theme-toggle" onClick={toggle}>
-          {theme === 'dark' ? '☀ light' : '◑ dark'}
-        </button>
+        <div className="pdfquiz-header-right">
+          <div className="pdfquiz-options-wrap">
+            <button
+              className="pdfquiz-icon-btn"
+              onClick={e => { e.stopPropagation(); setShowOptions(v => !v) }}
+            >
+              ···
+            </button>
+            {showOptions && (
+              <div className="pdfquiz-toast" onClick={e => e.stopPropagation()}>
+                <button
+                  className="pdfquiz-toast-item"
+                  onClick={() => { fileRef.current?.click(); setShowOptions(false) }}
+                >
+                  📄 Open PDF
+                </button>
+                {numPages > 0 && (
+                  <div className="pdfquiz-toast-info">{numPages} pages</div>
+                )}
+              </div>
+            )}
+          </div>
+          <button className="pdfquiz-icon-btn" onClick={toggle}>💡</button>
+        </div>
       </header>
 
       <div className="pdfquiz-viewer" ref={viewerRef}>
@@ -212,14 +246,6 @@ export default function PdfQuiz() {
         style={{ display: 'none' }}
       />
 
-      <div className="pdfquiz-bar">
-        <button className="pdfquiz-bar-btn" onClick={() => fileRef.current?.click()}>
-          📄
-        </button>
-        {numPages > 0 && (
-          <span className="pdfquiz-page-count">{numPages} pages</span>
-        )}
-      </div>
     </div>
   )
 }
