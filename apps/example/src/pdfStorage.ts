@@ -1,10 +1,11 @@
 // IndexedDB helpers for PDF library
-// Two stores:
-//   pdf-meta — lightweight metadata (no ArrayBuffer)
-//   pdf-data — the raw bytes, loaded only when opening a doc
+// Stores:
+//   pdf-meta  — lightweight metadata (no ArrayBuffer)
+//   pdf-data  — the raw bytes, loaded only when opening a doc
+//   pdf-notes — Q&A notes anchored by y-position within a doc
 
 const DB_NAME    = 'pdf-library'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 export interface PdfMeta {
   id:      number
@@ -12,6 +13,15 @@ export interface PdfMeta {
   size:    number   // bytes
   pages:   number   // 0 until first view
   addedAt: number   // Date.now()
+}
+
+export interface PdfNote {
+  id:       number
+  docId:    number
+  yPos:     number  // px from top of scrollable content
+  question: string
+  answer:   string
+  createdAt: number
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -24,6 +34,10 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('pdf-data')) {
         db.createObjectStore('pdf-data', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('pdf-notes')) {
+        const store = db.createObjectStore('pdf-notes', { keyPath: 'id', autoIncrement: true })
+        store.createIndex('docId', 'docId')
       }
     }
     req.onsuccess = () => resolve(req.result)
@@ -48,7 +62,6 @@ export async function savePdf(
   data: ArrayBuffer,
 ): Promise<number> {
   const db = await openDB()
-  // Insert metadata first to get auto-generated id
   const metaId = await new Promise<number>((resolve, reject) => {
     const tx    = db.transaction('pdf-meta', 'readwrite')
     const store = tx.objectStore('pdf-meta')
@@ -56,7 +69,6 @@ export async function savePdf(
     req.onsuccess = () => resolve(req.result as number)
     req.onerror   = () => reject(req.error)
   })
-  // Insert data with same id
   await new Promise<void>((resolve, reject) => {
     const tx    = db.transaction('pdf-data', 'readwrite')
     const store = tx.objectStore('pdf-data')
@@ -111,4 +123,45 @@ export async function deletePdf(id: number): Promise<void> {
       req.onerror   = () => reject(req.error)
     }),
   ])
+}
+
+// ── Notes ────────────────────────────────────────────────────────────────────
+
+export async function listNotes(docId: number): Promise<PdfNote[]> {
+  const db    = await openDB()
+  const tx    = db.transaction('pdf-notes', 'readonly')
+  const index = tx.objectStore('pdf-notes').index('docId')
+  return new Promise((resolve, reject) => {
+    const req = index.getAll(docId)
+    req.onsuccess = () => resolve(req.result as PdfNote[])
+    req.onerror   = () => reject(req.error)
+  })
+}
+
+export async function saveNote(
+  docId: number,
+  yPos: number,
+  question: string,
+  answer: string,
+): Promise<PdfNote> {
+  const db = await openDB()
+  const record = { docId, yPos, question, answer, createdAt: Date.now() }
+  const id = await new Promise<number>((resolve, reject) => {
+    const tx    = db.transaction('pdf-notes', 'readwrite')
+    const store = tx.objectStore('pdf-notes')
+    const req   = store.add(record)
+    req.onsuccess = () => resolve(req.result as number)
+    req.onerror   = () => reject(req.error)
+  })
+  return { id, ...record }
+}
+
+export async function deleteNote(id: number): Promise<void> {
+  const db = await openDB()
+  await new Promise<void>((resolve, reject) => {
+    const tx  = db.transaction('pdf-notes', 'readwrite')
+    const req = tx.objectStore('pdf-notes').delete(id)
+    req.onsuccess = () => resolve()
+    req.onerror   = () => reject(req.error)
+  })
 }
