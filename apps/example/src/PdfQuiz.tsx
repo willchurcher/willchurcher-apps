@@ -4,20 +4,109 @@ import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { useNavigate } from 'react-router-dom'
 import { HeaderRight } from './HeaderRight'
+import {
+  listPdfs,
+  savePdf,
+  loadPdfData,
+  deletePdf,
+  updatePages,
+  type PdfMeta,
+} from './pdfStorage'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url,
 ).toString()
 
-export default function PdfQuiz() {
+function fmtSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// ─── Library screen ──────────────────────────────────────────────────────────
+
+function PdfLibrary({
+  docs,
+  onOpen,
+  onDelete,
+  onAdd,
+}: {
+  docs: PdfMeta[]
+  onOpen:   (doc: PdfMeta) => void
+  onDelete: (doc: PdfMeta) => void
+  onAdd:    () => void
+}) {
   const navigate = useNavigate()
 
-  const [file, setFile]           = useState<File | null>(null)
-  const [numPages, setNumPages]   = useState(0)
+  return (
+    <div className="pdfquiz-page">
+      <header className="page-header">
+        <div className="page-header-left">
+          <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
+          <span className="page-header-title">PDF Viewer</span>
+        </div>
+        <HeaderRight options={() => <></>} />
+      </header>
+
+      <div className="pdf-library">
+        {docs.length === 0 ? (
+          <div className="pdf-library-empty">
+            <span className="pdfquiz-placeholder-icon">📄</span>
+            <span>No saved PDFs yet</span>
+          </div>
+        ) : (
+          <div className="pdf-library-list">
+            {docs.map(doc => (
+              <div
+                key={doc.id}
+                className="card pdf-library-card"
+                onClick={() => onOpen(doc)}
+              >
+                <span className="pdf-card-icon">📄</span>
+                <div className="pdf-card-info">
+                  <span className="pdf-card-name">{doc.name}</span>
+                  <span className="pdf-card-meta">
+                    {doc.pages > 0 ? `${doc.pages} pages · ` : ''}{fmtSize(doc.size)}
+                  </span>
+                </div>
+                <button
+                  className="pdf-card-delete"
+                  aria-label="Delete"
+                  onClick={e => { e.stopPropagation(); onDelete(doc) }}
+                >
+                  🗑
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button className="pdf-add-btn" onClick={onAdd}>
+          + Add PDF
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Viewer screen ────────────────────────────────────────────────────────────
+
+function PdfViewer({
+  docId,
+  data,
+  name,
+  onBack,
+  onPagesLoaded,
+}: {
+  docId: number
+  data:  ArrayBuffer
+  name:  string
+  onBack: () => void
+  onPagesLoaded: (id: number, pages: number) => void
+}) {
+  const [numPages,    setNumPages]    = useState(0)
   const [renderScale, setRenderScale] = useState(1.0)
 
-  const fileRef        = useRef<HTMLInputElement>(null)
   const viewerRef      = useRef<HTMLDivElement>(null)
   const contentRef     = useRef<HTMLDivElement>(null)
   const committedScale      = useRef(1.0)
@@ -31,8 +120,6 @@ export default function PdfQuiz() {
     const obs = new ResizeObserver(([e]) => {
       const newWidth = e.contentRect.width
       const oldWidth = prevViewerWidth.current
-      // Capture scroll BEFORE setViewerWidth triggers a re-render, then scale it.
-      // Page heights are proportional to page width, so all distances scale by the same ratio.
       if (newWidth !== oldWidth && viewerRef.current) {
         const ratio = newWidth / oldWidth
         pendingResizeScroll.current = {
@@ -47,7 +134,6 @@ export default function PdfQuiz() {
     return () => obs.disconnect()
   }, [])
 
-  // After a width change re-render, restore the scaled scroll position
   useEffect(() => {
     const target = pendingResizeScroll.current
     if (!target || !viewerRef.current) return
@@ -59,7 +145,6 @@ export default function PdfQuiz() {
     })
   }, [viewerWidth])
 
-  // After a pinch-zoom re-render, restore the pinch-corrected scroll position
   useEffect(() => {
     const target = pendingScroll.current
     if (!target || !viewerRef.current) return
@@ -76,16 +161,14 @@ export default function PdfQuiz() {
     const content = contentRef.current
     if (!viewer || !content) return
 
-    // iOS Safari fires proprietary GestureEvents for pinch — block them so
-    // our touchmove handler is the sole responder to two-finger gestures.
     const blockGesture = (e: Event) => e.preventDefault()
     document.addEventListener('gesturestart',  blockGesture, { passive: false })
     document.addEventListener('gesturechange', blockGesture, { passive: false })
 
     let startDist  = 0
-    let startMidX  = 0   // viewport-space midpoint of the two fingers at gesture start
+    let startMidX  = 0
     let startMidY  = 0
-    let pinchRatio = 1.0  // CSS-transform ratio applied on top of committedScale
+    let pinchRatio = 1.0
 
     const getDist = (t: TouchList) =>
       Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
@@ -104,11 +187,8 @@ export default function PdfQuiz() {
 
       const rawRatio = getDist(e.touches) / startDist
       const total    = committedScale.current * rawRatio
-      // Clamp the total scale; back-calculate pinchRatio from that
       pinchRatio = Math.max(1.0, Math.min(3.0, total)) / committedScale.current
 
-      // Transform origin = pinch midpoint in content-local coordinates
-      // (viewport offset relative to viewer's left/top, plus the current scroll)
       const rect    = viewer.getBoundingClientRect()
       const originX = (startMidX - rect.left) + viewer.scrollLeft
       const originY = (startMidY - rect.top)  + viewer.scrollTop
@@ -121,21 +201,15 @@ export default function PdfQuiz() {
       if (startDist <= 0 || e.touches.length >= 2) return
 
       const rect = viewer.getBoundingClientRect()
-      // Pinch centre in viewport space (relative to viewer's top-left corner)
       const cx = startMidX - rect.left
       const cy = startMidY - rect.top
 
-      // Correct scroll formula so the pinch centre stays at the same screen position.
-      // Derivation: content point at content-coord (scrollLeft + cx) maps to
-      // (scrollLeft + cx) * ratio after zoom; subtract cx to get new scrollLeft.
       const targetLeft = viewer.scrollLeft * pinchRatio + cx * (pinchRatio - 1)
       const targetTop  = viewer.scrollTop  * pinchRatio + cy * (pinchRatio - 1)
 
-      // Clear the visual-only CSS transform
       content.style.transform       = ''
       content.style.transformOrigin = ''
 
-      // Commit scale → react-pdf re-renders canvases at the new pixel width (crisp)
       const newScale = Math.max(1.0, Math.min(3.0, committedScale.current * pinchRatio))
       committedScale.current = newScale
       pendingScroll.current  = { left: targetLeft, top: targetTop }
@@ -158,66 +232,118 @@ export default function PdfQuiz() {
     }
   }, [])
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    if (f) { setFile(f); setNumPages(0) }
-  }
-
   return (
     <div className="pdfquiz-page">
       <header className="page-header">
         <div className="page-header-left">
-          <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
-          <span className="page-header-title">PDF Viewer</span>
+          <button className="back-btn" onClick={onBack}>‹ Library</button>
+          <span className="page-header-title">{name}</span>
         </div>
-        <HeaderRight options={close => (
-          <>
-            <button className="header-toast-item" onClick={() => { fileRef.current?.click(); close() }}>
-              📄 Open PDF
-            </button>
-            {numPages > 0 && (
-              <div className="header-toast-info">{numPages} pages</div>
-            )}
-          </>
+        <HeaderRight options={() => (
+          numPages > 0
+            ? <div className="header-toast-info">{numPages} pages</div>
+            : <></>
         )} />
       </header>
 
       <div className="pdfquiz-viewer" ref={viewerRef}>
         <div ref={contentRef} className="pdfquiz-content">
-          {!file ? (
-            <div className="pdfquiz-placeholder" onClick={() => fileRef.current?.click()}>
-              <span className="pdfquiz-placeholder-icon">📄</span>
-              <span>Tap to open a PDF</span>
-            </div>
-          ) : (
-            <Document
-              file={file}
-              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-              loading={<div className="pdfquiz-loading">Loading…</div>}
-            >
-              {Array.from({ length: numPages }, (_, i) => (
-                <div key={i} className="pdfquiz-page-wrap">
-                  <Page
-                    pageNumber={i + 1}
-                    width={viewerWidth * renderScale}
-                    renderAnnotationLayer={false}
-                    renderTextLayer={true}
-                  />
-                </div>
-              ))}
-            </Document>
-          )}
+          <Document
+            file={data}
+            onLoadSuccess={({ numPages: n }) => {
+              setNumPages(n)
+              onPagesLoaded(docId, n)
+            }}
+            loading={<div className="pdfquiz-loading">Loading…</div>}
+          >
+            {Array.from({ length: numPages }, (_, i) => (
+              <div key={i} className="pdfquiz-page-wrap">
+                <Page
+                  pageNumber={i + 1}
+                  width={viewerWidth * renderScale}
+                  renderAnnotationLayer={false}
+                  renderTextLayer={true}
+                />
+              </div>
+            ))}
+          </Document>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Root component ───────────────────────────────────────────────────────────
+
+export default function PdfQuiz() {
+  const [docs,   setDocs]   = useState<PdfMeta[]>([])
+  const [viewer, setViewer] = useState<{ docId: number; data: ArrayBuffer; name: string } | null>(null)
+
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  // Load metadata list on mount
+  useEffect(() => {
+    listPdfs().then(list =>
+      setDocs(list.sort((a, b) => b.addedAt - a.addedAt))
+    )
+  }, [])
+
+  const handleAdd = () => fileRef.current?.click()
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    // Reset input so same file can be re-added
+    e.target.value = ''
+
+    const data = await f.arrayBuffer()
+    const id   = await savePdf(f.name, f.size, data)
+    const meta: PdfMeta = { id, name: f.name, size: f.size, pages: 0, addedAt: Date.now() }
+    setDocs(prev => [meta, ...prev])
+    setViewer({ docId: id, data, name: f.name })
+  }
+
+  const handleOpen = async (doc: PdfMeta) => {
+    const data = await loadPdfData(doc.id)
+    setViewer({ docId: doc.id, data, name: doc.name })
+  }
+
+  const handleDelete = async (doc: PdfMeta) => {
+    await deletePdf(doc.id)
+    setDocs(prev => prev.filter(d => d.id !== doc.id))
+  }
+
+  const handlePagesLoaded = async (id: number, pages: number) => {
+    await updatePages(id, pages)
+    setDocs(prev => prev.map(d => d.id === id ? { ...d, pages } : d))
+  }
+
+  return (
+    <>
+      {viewer ? (
+        <PdfViewer
+          docId={viewer.docId}
+          data={viewer.data}
+          name={viewer.name}
+          onBack={() => setViewer(null)}
+          onPagesLoaded={handlePagesLoaded}
+        />
+      ) : (
+        <PdfLibrary
+          docs={docs}
+          onOpen={handleOpen}
+          onDelete={handleDelete}
+          onAdd={handleAdd}
+        />
+      )}
 
       <input
         ref={fileRef}
         type="file"
         accept=".pdf"
-        onChange={onFileChange}
+        onChange={handleFileChange}
         style={{ display: 'none' }}
       />
-
-    </div>
+    </>
   )
 }
