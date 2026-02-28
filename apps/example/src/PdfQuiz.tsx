@@ -159,14 +159,14 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
 
   useEffect(() => { listNotes(docId).then(setNotes) }, [docId])
 
-  // Track the content's rendered height so pin fractions can be converted to px
+  // Keep contentScrollH in sync with the viewer's actual scrollable height.
+  // Runs after pages load (numPages), orientation changes (viewerWidth),
+  // or sidebar toggle (effectiveWidth changes → pages re-render).
   useEffect(() => {
-    const obs = new ResizeObserver(() => {
-      if (contentRef.current) setContentScrollH(contentRef.current.scrollHeight)
+    requestAnimationFrame(() => {
+      if (viewerRef.current) setContentScrollH(viewerRef.current.scrollHeight)
     })
-    if (contentRef.current) obs.observe(contentRef.current)
-    return () => obs.disconnect()
-  }, [])
+  }, [numPages, viewerWidth, sidebarOpen])
 
   useEffect(() => {
     const obs = new ResizeObserver(([e]) => {
