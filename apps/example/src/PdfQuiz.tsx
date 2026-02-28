@@ -78,7 +78,7 @@ export default function PdfQuiz() {
       const rawRatio = getDist(e.touches) / startDist
       const total    = committedScale.current * rawRatio
       // Clamp the total scale; back-calculate pinchRatio from that
-      pinchRatio = Math.max(0.3, Math.min(3.0, total)) / committedScale.current
+      pinchRatio = Math.max(1.0, Math.min(3.0, total)) / committedScale.current
 
       // Transform origin = pinch midpoint in content-local coordinates
       // (viewport offset relative to viewer's left/top, plus the current scroll)
@@ -109,7 +109,7 @@ export default function PdfQuiz() {
       content.style.transformOrigin = ''
 
       // Commit scale → react-pdf re-renders canvases at the new pixel width (crisp)
-      const newScale = Math.max(0.3, Math.min(3.0, committedScale.current * pinchRatio))
+      const newScale = Math.max(1.0, Math.min(3.0, committedScale.current * pinchRatio))
       committedScale.current = newScale
       pendingScroll.current  = { left: targetLeft, top: targetTop }
       setRenderScale(newScale)
