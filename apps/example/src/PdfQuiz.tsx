@@ -154,9 +154,19 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
   const pendingScroll       = useRef<{ left: number; top: number } | null>(null)
   const pendingResizeScroll = useRef<{ left: number; top: number } | null>(null)
   const prevViewerWidth     = useRef(window.innerWidth)
-  const [viewerWidth, setViewerWidth] = useState(window.innerWidth)
+  const [viewerWidth,       setViewerWidth]       = useState(window.innerWidth)
+  const [contentScrollH,    setContentScrollH]    = useState(0)
 
   useEffect(() => { listNotes(docId).then(setNotes) }, [docId])
+
+  // Track the content's rendered height so pin fractions can be converted to px
+  useEffect(() => {
+    const obs = new ResizeObserver(() => {
+      if (contentRef.current) setContentScrollH(contentRef.current.scrollHeight)
+    })
+    if (contentRef.current) obs.observe(contentRef.current)
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
     const obs = new ResizeObserver(([e]) => {
@@ -263,14 +273,15 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
 
   const handleSidebarTap = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!viewerRef.current) return
-    const rect = viewerRef.current.getBoundingClientRect()
-    const yPos = e.clientY - rect.top + viewerRef.current.scrollTop
-    setCreating(yPos)
+    const rect  = viewerRef.current.getBoundingClientRect()
+    const absY  = e.clientY - rect.top + viewerRef.current.scrollTop
+    const total = viewerRef.current.scrollHeight
+    setCreating(total > 0 ? absY / total : 0)
   }
 
   const handleSaveNote = async (q: string, a: string) => {
     if (creating === null) return
-    const note = await saveNote(docId, creating, effectiveWidth, q, a)
+    const note = await saveNote(docId, creating, q, a)
     setNotes(prev => [...prev, note])
     setCreating(null)
   }
@@ -324,7 +335,7 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
                 <button
                   key={note.id}
                   className="pdf-note-pin"
-                  style={{ top: note.yPos * (effectiveWidth / (note.savedWidth ?? effectiveWidth)) }}
+                  style={{ top: note.yPos * contentScrollH }}
                   title={note.question}
                   onClick={e => { e.stopPropagation(); setFlashcard(note) }}
                   onContextMenu={e => {
