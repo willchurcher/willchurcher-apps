@@ -9,37 +9,44 @@ export function HeaderRight({ options }: HeaderRightProps) {
   const [open, setOpen] = useState(false)
   const { toggle } = useTheme()
   const toastRef = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const close = () => setOpen(false)
 
   useEffect(() => {
     if (!open) return
 
-    // Capture-phase listener fires before any element's own handlers.
-    // Calling preventDefault() here stops the subsequent click event from
-    // firing on whatever the user tapped — so background elements stay inert.
-    const capture = (e: Event) => {
-      if (toastRef.current && toastRef.current.contains(e.target as Node)) return
+    const absorb = (e: Event) => {
+      // Let the ··· button handle its own toggle
+      if (btnRef.current?.contains(e.target as Node)) return
+      // Let clicks inside the toast reach their targets
+      if (toastRef.current?.contains(e.target as Node)) return
+      // Absorb everything else — no click-through
       e.preventDefault()
+      e.stopPropagation()
       setOpen(false)
     }
 
-    document.addEventListener('touchstart', capture, { passive: false, capture: true })
-    document.addEventListener('mousedown',  capture, { capture: true })
+    // touchstart + preventDefault prevents the synthesised click on iOS
+    document.addEventListener('touchstart', absorb, { passive: false, capture: true })
+    // click capture blocks click-through on desktop
+    document.addEventListener('click', absorb, { capture: true })
     return () => {
-      document.removeEventListener('touchstart', capture, { capture: true })
-      document.removeEventListener('mousedown',  capture, { capture: true })
+      document.removeEventListener('touchstart', absorb, { capture: true })
+      document.removeEventListener('click', absorb, { capture: true })
     }
   }, [open])
 
   return (
     <div className="header-right">
       <div className="header-options-anchor">
-        <button className="icon-btn" onClick={() => setOpen(v => !v)}>
+        <button ref={btnRef} className="icon-btn" onClick={() => setOpen(v => !v)}>
           ···
         </button>
-        {open && options && (
+        {open && (
           <div ref={toastRef} className="header-toast">
-            {options(close)}
+            {options
+              ? options(close)
+              : <span className="header-toast-no-options">No options</span>}
           </div>
         )}
       </div>
