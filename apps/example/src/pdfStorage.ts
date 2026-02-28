@@ -16,12 +16,13 @@ export interface PdfMeta {
 }
 
 export interface PdfNote {
-  id:       number
-  docId:    number
-  yPos:     number  // px from top of scrollable content
-  question: string
-  answer:   string
-  createdAt: number
+  id:         number
+  docId:      number
+  yPos:       number  // px from top of scrollable content at savedWidth
+  savedWidth: number  // effectiveWidth when note was created (for scaling)
+  question:   string
+  answer:     string
+  createdAt:  number
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -141,11 +142,12 @@ export async function listNotes(docId: number): Promise<PdfNote[]> {
 export async function saveNote(
   docId: number,
   yPos: number,
+  savedWidth: number,
   question: string,
   answer: string,
 ): Promise<PdfNote> {
   const db = await openDB()
-  const record = { docId, yPos, question, answer, createdAt: Date.now() }
+  const record = { docId, yPos, savedWidth, question, answer, createdAt: Date.now() }
   const id = await new Promise<number>((resolve, reject) => {
     const tx    = db.transaction('pdf-notes', 'readwrite')
     const store = tx.objectStore('pdf-notes')
