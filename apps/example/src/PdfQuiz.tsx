@@ -150,12 +150,26 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
 
   const viewerRef      = useRef<HTMLDivElement>(null)
   const contentRef     = useRef<HTMLDivElement>(null)
+  const rowRef         = useRef<HTMLDivElement>(null)
   const committedScale      = useRef(1.0)
   const pendingScroll       = useRef<{ left: number; top: number } | null>(null)
   const pendingResizeScroll = useRef<{ left: number; top: number } | null>(null)
   const prevViewerWidth     = useRef(window.innerWidth)
   const [viewerWidth,       setViewerWidth]       = useState(window.innerWidth)
+  const [rowHeight,         setRowHeight]         = useState(0)
+
   useEffect(() => { listNotes(docId).then(setNotes) }, [docId])
+
+  // Track the row's height so pin yPos fractions can be converted to px.
+  // Observing rowRef is the most direct measurement — it's exactly the
+  // containing block the sidebar stretches to fill.
+  useEffect(() => {
+    const obs = new ResizeObserver(() => {
+      if (rowRef.current) setRowHeight(rowRef.current.clientHeight)
+    })
+    if (rowRef.current) obs.observe(rowRef.current)
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
     const obs = new ResizeObserver(([e]) => {
@@ -261,10 +275,10 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
   }, [])
 
   const handleSidebarTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!viewerRef.current) return
+    if (!viewerRef.current || !rowRef.current) return
     const rect  = viewerRef.current.getBoundingClientRect()
     const absY  = e.clientY - rect.top + viewerRef.current.scrollTop
-    const total = viewerRef.current.scrollHeight
+    const total = rowRef.current.clientHeight
     setCreating(total > 0 ? absY / total : 0)
   }
 
@@ -298,7 +312,7 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
       </header>
 
       <div className="pdfquiz-viewer" ref={viewerRef}>
-        <div className="pdfquiz-row">
+        <div className="pdfquiz-row" ref={rowRef}>
           <div ref={contentRef} className="pdfquiz-content">
             <Document
               file={data}
@@ -324,7 +338,7 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
                 <button
                   key={note.id}
                   className="pdf-note-pin"
-                  style={{ top: `${note.yPos * 100}%` }}
+                  style={{ top: note.yPos * rowHeight }}
                   title={note.question}
                   onClick={e => { e.stopPropagation(); setFlashcard(note) }}
                   onContextMenu={e => {
