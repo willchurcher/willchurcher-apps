@@ -160,13 +160,15 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
   useEffect(() => { listNotes(docId).then(setNotes) }, [docId])
 
   // Keep contentScrollH in sync with the viewer's actual scrollable height.
-  // Runs after pages load (numPages), orientation changes (viewerWidth),
-  // or sidebar toggle (effectiveWidth changes → pages re-render).
+  // Observe contentRef (which resizes as react-pdf renders pages) so we react
+  // continuously — not just once per frame after a state change fires.
   useEffect(() => {
-    requestAnimationFrame(() => {
+    const obs = new ResizeObserver(() => {
       if (viewerRef.current) setContentScrollH(viewerRef.current.scrollHeight)
     })
-  }, [numPages, viewerWidth, sidebarOpen])
+    if (contentRef.current) obs.observe(contentRef.current)
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
     const obs = new ResizeObserver(([e]) => {
