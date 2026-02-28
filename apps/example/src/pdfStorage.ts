@@ -5,7 +5,7 @@
 //   pdf-notes — Q&A notes anchored by y-position within a doc
 
 const DB_NAME    = 'pdf-library'
-const DB_VERSION = 2
+const DB_VERSION = 4
 
 export interface PdfMeta {
   id:      number
@@ -16,12 +16,13 @@ export interface PdfMeta {
 }
 
 export interface PdfNote {
-  id:       number
-  docId:    number
-  yPos:     number  // px from top of scrollable content
-  question: string
-  answer:   string
-  createdAt: number
+  id:         number
+  docId:      number
+  yPos:       number  // px from top of scrollable content at savedWidth
+  savedWidth: number  // effectiveWidth when note was created (for scaling)
+  question:   string
+  answer:     string
+  createdAt:  number
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -35,10 +36,12 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('pdf-data')) {
         db.createObjectStore('pdf-data', { keyPath: 'id' })
       }
-      if (!db.objectStoreNames.contains('pdf-notes')) {
-        const store = db.createObjectStore('pdf-notes', { keyPath: 'id', autoIncrement: true })
-        store.createIndex('docId', 'docId')
+      // v4: clear notes store to purge stale fractional-yPos format from v3
+      if (db.objectStoreNames.contains('pdf-notes')) {
+        db.deleteObjectStore('pdf-notes')
       }
+      const store = db.createObjectStore('pdf-notes', { keyPath: 'id', autoIncrement: true })
+      store.createIndex('docId', 'docId')
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror   = () => reject(req.error)
@@ -141,11 +144,12 @@ export async function listNotes(docId: number): Promise<PdfNote[]> {
 export async function saveNote(
   docId: number,
   yPos: number,
+  savedWidth: number,
   question: string,
   answer: string,
 ): Promise<PdfNote> {
   const db = await openDB()
-  const record = { docId, yPos, question, answer, createdAt: Date.now() }
+  const record = { docId, yPos, savedWidth, question, answer, createdAt: Date.now() }
   const id = await new Promise<number>((resolve, reject) => {
     const tx    = db.transaction('pdf-notes', 'readwrite')
     const store = tx.objectStore('pdf-notes')

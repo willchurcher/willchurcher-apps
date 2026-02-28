@@ -270,7 +270,7 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
 
   const handleSaveNote = async (q: string, a: string) => {
     if (creating === null) return
-    const note = await saveNote(docId, creating, q, a)
+    const note = await saveNote(docId, creating, effectiveWidth, q, a)
     setNotes(prev => [...prev, note])
     setCreating(null)
   }
@@ -324,7 +324,7 @@ function PdfViewer({ docId, data, name, onBack, onPagesLoaded }: {
                 <button
                   key={note.id}
                   className="pdf-note-pin"
-                  style={{ top: note.yPos }}
+                  style={{ top: note.yPos * (effectiveWidth / (note.savedWidth ?? effectiveWidth)) }}
                   title={note.question}
                   onClick={e => { e.stopPropagation(); setFlashcard(note) }}
                   onContextMenu={e => {
