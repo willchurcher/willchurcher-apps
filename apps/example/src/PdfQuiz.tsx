@@ -3,7 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { useNavigate } from 'react-router-dom'
-import { useTheme } from './ThemeContext'
+import { HeaderRight } from './HeaderRight'
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -12,7 +12,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 export default function PdfQuiz() {
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
 
   const [file, setFile]           = useState<File | null>(null)
   const [numPages, setNumPages]   = useState(0)
@@ -171,9 +170,16 @@ export default function PdfQuiz() {
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
           <span className="page-header-title">PDF Viewer</span>
         </div>
-        <button className="theme-toggle" onClick={toggle}>
-          {theme === 'dark' ? '☀ light' : '◑ dark'}
-        </button>
+        <HeaderRight options={close => (
+          <>
+            <button className="header-toast-item" onClick={() => { fileRef.current?.click(); close() }}>
+              📄 Open PDF
+            </button>
+            {numPages > 0 && (
+              <div className="header-toast-info">{numPages} pages</div>
+            )}
+          </>
+        )} />
       </header>
 
       <div className="pdfquiz-viewer" ref={viewerRef}>
@@ -212,14 +218,6 @@ export default function PdfQuiz() {
         style={{ display: 'none' }}
       />
 
-      <div className="pdfquiz-bar">
-        <button className="pdfquiz-bar-btn" onClick={() => fileRef.current?.click()}>
-          📄
-        </button>
-        {numPages > 0 && (
-          <span className="pdfquiz-page-count">{numPages} pages</span>
-        )}
-      </div>
     </div>
   )
 }

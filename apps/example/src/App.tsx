@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
-import { ThemeProvider, useTheme } from './ThemeContext'
+import { ThemeProvider } from './ThemeContext'
 import RainfallDistribution from './RainfallDistribution'
 import PdfQuiz from './PdfQuiz'
+import { HeaderRight } from './HeaderRight'
 
 // ── App registry ────────────────────────────────────────────
 const APP_LIST = [
@@ -14,9 +15,12 @@ const APP_LIST = [
 ]
 
 // ── Shared page shell ────────────────────────────────────────
-function AppPage({ title, children }: { title: string; children: React.ReactNode }) {
+function AppPage({ title, children, options }: {
+  title: string
+  children: React.ReactNode
+  options?: (close: () => void) => React.ReactNode
+}) {
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
   return (
     <div className="page">
       <header className="page-header">
@@ -26,9 +30,7 @@ function AppPage({ title, children }: { title: string; children: React.ReactNode
           </button>
           <span className="page-header-title">{title}</span>
         </div>
-        <button className="theme-toggle" onClick={toggle}>
-          {theme === 'dark' ? '☀ light' : '◑ dark'}
-        </button>
+        <HeaderRight options={options} />
       </header>
       <div className="page-body">{children}</div>
     </div>
@@ -37,14 +39,11 @@ function AppPage({ title, children }: { title: string; children: React.ReactNode
 
 // ── Home ─────────────────────────────────────────────────────
 function Home() {
-  const { theme, toggle } = useTheme()
   return (
     <div className="home">
       <header className="page-header">
         <span className="page-header-title">Apps</span>
-        <button className="theme-toggle" onClick={toggle}>
-          {theme === 'dark' ? '☀ light' : '◑ dark'}
-        </button>
+        <HeaderRight />
       </header>
       <div className="home-content">
         <div className="app-grid">

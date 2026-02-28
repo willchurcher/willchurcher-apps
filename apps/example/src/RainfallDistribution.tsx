@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from './ThemeContext'
+import { HeaderRight } from './HeaderRight'
 
 interface MonthData {
   name: string
@@ -467,7 +468,7 @@ function MonthChart({ month, pdfYMax, logX, logY, mode, isSelected, onClick, isD
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function RainfallDistribution() {
   const navigate = useNavigate()
-  const { theme, toggle } = useTheme()
+  const { theme } = useTheme()
   const isDark = theme === 'dark'
 
   const [selected, setSelected] = useState<string | null>(null)
@@ -503,9 +504,7 @@ export default function RainfallDistribution() {
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
           <span className="page-header-title">Tokyo Rainfall</span>
         </div>
-        <button className="theme-toggle" onClick={toggle}>
-          {isDark ? '☀ light' : '◑ dark'}
-        </button>
+        <HeaderRight />
       </header>
 
       {/* Content — full-width scrollable body */}
