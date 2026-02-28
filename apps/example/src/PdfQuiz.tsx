@@ -45,7 +45,7 @@ function PdfLibrary({
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
           <span className="page-header-title">PDF Viewer</span>
         </div>
-        <HeaderRight options={() => <></>} />
+        <HeaderRight />
       </header>
 
       <div className="pdf-library">
@@ -239,11 +239,7 @@ function PdfViewer({
           <button className="back-btn" onClick={onBack}>‹ Library</button>
           <span className="page-header-title">{name}</span>
         </div>
-        <HeaderRight options={() => (
-          numPages > 0
-            ? <div className="header-toast-info">{numPages} pages</div>
-            : <></>
-        )} />
+        <HeaderRight />
       </header>
 
       <div className="pdfquiz-viewer" ref={viewerRef}>
