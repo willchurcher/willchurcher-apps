@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HeaderRight } from './HeaderRight'
 import { listPdfs, savePdf } from './pdfStorage'
@@ -26,7 +26,7 @@ interface PaperResult {
   source:                   'ss' | 'oa' | 'both'
 }
 
-type SortKey = 'relevance' | 'citations' | 'influential' | 'newest' | 'oldest' | 'hindex'
+type SortKey = 'relevance' | 'citations' | 'influential' | 'newest' | 'oldest'
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -121,19 +121,14 @@ function mergeResults(ss: PaperResult[], oa: PaperResult[]): PaperResult[] {
   return [...byDoi.values(), ...noDoi]
 }
 
-function sortResults(results: PaperResult[], key: SortKey, hCache: Map<string, number>): PaperResult[] {
+function sortResults(results: PaperResult[], key: SortKey): PaperResult[] {
   const arr = [...results]
-  const getH = (p: PaperResult) => {
-    const id = p.authors[0]?.authorId
-    return id ? (hCache.get(id) ?? -1) : -1
-  }
   switch (key) {
     case 'relevance':   arr.sort((a, b) => a._idx - b._idx); break
     case 'citations':   arr.sort((a, b) => (b.citationCount ?? -1) - (a.citationCount ?? -1)); break
     case 'influential': arr.sort((a, b) => (b.influentialCitationCount ?? -1) - (a.influentialCitationCount ?? -1)); break
     case 'newest':      arr.sort((a, b) => (b.year ?? 0) - (a.year ?? 0)); break
     case 'oldest':      arr.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999)); break
-    case 'hindex':      arr.sort((a, b) => getH(b) - getH(a)); break
   }
   return arr
 }
@@ -165,28 +160,14 @@ function formatAuthors(authors: Author[]): string {
 
 // ── PaperCard ─────────────────────────────────────────────────────────────────
 
-function PaperCard({ paper, hIndex, onHIndexNeeded, inLibrary, onAdd }: {
-  paper:           PaperResult
-  hIndex:          number | null   // null = not fetched yet, -1 = no authorId available
-  onHIndexNeeded:  (authorId: string) => void
-  inLibrary:       boolean
-  onAdd:           (paper: PaperResult) => Promise<void>
+function PaperCard({ paper, inLibrary, onAdd }: {
+  paper:     PaperResult
+  inLibrary: boolean
+  onAdd:     (paper: PaperResult) => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(false)
   const [adding,   setAdding]   = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
-
-  // Trigger h-index fetch lazily when card scrolls into view
-  useEffect(() => {
-    const authorId = paper.authors[0]?.authorId
-    if (!authorId || hIndex !== null) return
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) { onHIndexNeeded(authorId); obs.disconnect() }
-    }, { rootMargin: '200px' })
-    if (cardRef.current) obs.observe(cardRef.current)
-    return () => obs.disconnect()
-  }, [paper.authors, hIndex, onHIndexNeeded])
 
   const handleAdd = async () => {
     setAdding(true)
@@ -199,13 +180,8 @@ function PaperCard({ paper, hIndex, onHIndexNeeded, inLibrary, onAdd }: {
     }
   }
 
-  const firstAuthorId = paper.authors[0]?.authorId
-  const hLabel = firstAuthorId
-    ? (hIndex === null ? '…' : hIndex < 0 ? '—' : String(hIndex))
-    : '—'
-
   return (
-    <div className="card paper-card" ref={cardRef}>
+    <div className="card paper-card">
       <div className="paper-card-header">
         <h3 className="paper-title">{paper.title}</h3>
         <span className="paper-year">{paper.year ?? 'n.d.'}</span>
@@ -224,7 +200,6 @@ function PaperCard({ paper, hIndex, onHIndexNeeded, inLibrary, onAdd }: {
         {paper.influentialCitationCount !== null && (
           <span title="Influential citations">⭐ {paper.influentialCitationCount}</span>
         )}
-        <span title="First author h-index">h-index: {hLabel}</span>
       </div>
 
       {paper.abstract && (
@@ -275,7 +250,6 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'influential', label: 'Most influential' },
   { key: 'newest',      label: 'Newest' },
   { key: 'oldest',      label: 'Oldest' },
-  { key: 'hindex',      label: 'Author h-index' },
 ]
 
 export default function Research() {
@@ -291,26 +265,8 @@ export default function Research() {
   const [addedNames, setAddedNames] = useState<Set<string>>(new Set())
   const [libraryNames, setLibraryNames] = useState<Set<string>>(new Set())
 
-  // Stable ref-backed h-index cache to avoid stale closure issues
-  const hCacheRef = useRef<Map<string, number>>(new Map())
-  const [hIndexCache, setHIndexCache] = useState<Map<string, number>>(new Map())
-
   useEffect(() => {
     listPdfs().then(docs => setLibraryNames(new Set(docs.map(d => d.name))))
-  }, [])
-
-  const fetchHIndex = useCallback(async (authorId: string) => {
-    if (hCacheRef.current.has(authorId)) return
-    hCacheRef.current.set(authorId, -1)  // mark in-flight
-    try {
-      const res = await fetch(`https://api.semanticscholar.org/graph/v1/author/${authorId}?fields=hIndex`)
-      if (!res.ok) return
-      const json = await res.json()
-      if (json.hIndex != null) {
-        hCacheRef.current.set(authorId, json.hIndex)
-        setHIndexCache(new Map(hCacheRef.current))
-      }
-    } catch { /* ignore */ }
   }, [])
 
   const search = async () => {
@@ -369,7 +325,6 @@ export default function Research() {
   const sorted = sortResults(
     results.filter(p => p.openAccessUrl || isInLibrary(p)),
     sortBy,
-    hIndexCache,
   )
 
   return (
@@ -432,12 +387,6 @@ export default function Research() {
             <PaperCard
               key={paper.id}
               paper={paper}
-              hIndex={
-                paper.authors[0]?.authorId
-                  ? (hIndexCache.get(paper.authors[0].authorId) ?? null)
-                  : -1
-              }
-              onHIndexNeeded={fetchHIndex}
               inLibrary={isInLibrary(paper)}
               onAdd={handleAdd}
             />
