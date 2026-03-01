@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HeaderRight } from './HeaderRight'
 import { listPdfs, savePdf } from './pdfStorage'
@@ -160,11 +160,14 @@ function formatAuthors(authors: Author[]): string {
 
 // ── PaperCard ─────────────────────────────────────────────────────────────────
 
-function PaperCard({ paper, inLibrary, onAdd }: {
-  paper:     PaperResult
-  inLibrary: boolean
-  onAdd:     (paper: PaperResult) => Promise<void>
+function PaperCard({ paper, libraryName, onAdd, onUpload }: {
+  paper:       PaperResult
+  libraryName: string | null   // non-null = in library, this is the saved filename
+  onAdd:       (paper: PaperResult) => Promise<void>
+  onUpload:    (paper: PaperResult, file: File) => Promise<void>
 }) {
+  const navigate     = useNavigate()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [adding,   setAdding]   = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
@@ -176,6 +179,19 @@ function PaperCard({ paper, inLibrary, onAdd }: {
       await onAdd(paper)
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to add')
+      setAdding(false)
+    }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAdding(true)
+    setAddError(null)
+    try {
+      await onUpload(paper, file)
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to upload')
       setAdding(false)
     }
   }
@@ -218,22 +234,35 @@ function PaperCard({ paper, inLibrary, onAdd }: {
           </a>
         )}
 
-        {inLibrary ? (
-          <button className="btn paper-add-btn paper-in-library" disabled>
-            ✓ In library
-          </button>
-        ) : paper.openAccessUrl ? (
-          <button className="btn btn-primary paper-add-btn" onClick={handleAdd} disabled={adding}>
-            {adding ? 'Adding…' : '+ Add to library'}
+        {libraryName !== null ? (
+          <button
+            className="btn btn-primary paper-add-btn"
+            onClick={() => navigate(`/pdf?name=${encodeURIComponent(libraryName)}`)}
+          >
+            View in library
           </button>
         ) : (
-          <button
-            className="btn paper-add-btn paper-no-pdf"
-            disabled
-            title="No open-access PDF — open DOI to find full text"
-          >
-            + Add to library
-          </button>
+          <>
+            <button className="btn btn-primary paper-add-btn" onClick={handleAdd} disabled={adding}>
+              {adding ? 'Adding…' : '+ Add to library'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
+            {addError && (
+              <button
+                className="btn paper-upload-btn"
+                onClick={() => { setAddError(null); fileInputRef.current?.click() }}
+                disabled={adding}
+              >
+                Upload PDF
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -261,8 +290,9 @@ export default function Research() {
   const [searched,   setSearched]   = useState(false)
   const [error,      setError]      = useState<string | null>(null)
   const [sourceNote, setSourceNote] = useState<string | null>(null)
-  const [sortBy,     setSortBy]     = useState<SortKey>('relevance')
-  const [addedNames, setAddedNames] = useState<Set<string>>(new Set())
+  const [sortBy,       setSortBy]       = useState<SortKey>('relevance')
+  // paper.id → saved filename (papers added this session)
+  const [addedPapers,  setAddedPapers]  = useState<Map<string, string>>(new Map())
   const [libraryNames, setLibraryNames] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -296,34 +326,43 @@ export default function Research() {
     setResults(mergeResults(ssResults ?? [], oaResults ?? []))
   }
 
+  const saveAndNavigate = async (paper: PaperResult, data: ArrayBuffer) => {
+    const base = makePdfName(paper)
+    const allNames = new Set([...libraryNames, ...addedPapers.values()])
+    const name = makeUniqueName(base, allNames)
+    await savePdf(name, data.byteLength, data)
+    setAddedPapers(prev => new Map(prev).set(paper.id, name))
+    navigate(`/pdf?name=${encodeURIComponent(name)}`)
+  }
+
   const handleAdd = async (paper: PaperResult) => {
     if (!paper.openAccessUrl) throw new Error('No open-access PDF')
-
     let data: ArrayBuffer
     try {
       const res = await fetch(paper.openAccessUrl)
       if (!res.ok) throw new Error()
       data = await res.arrayBuffer()
     } catch {
-      throw new Error('Could not fetch PDF — try the DOI link instead')
+      throw new Error('Could not fetch PDF — try uploading manually')
     }
-
-    const base = makePdfName(paper)
-    const allNames = new Set([...libraryNames, ...addedNames])
-    const name = makeUniqueName(base, allNames)
-
-    await savePdf(name, data.byteLength, data)
-    setAddedNames(prev => new Set(prev).add(name))
-    navigate(`/pdf?name=${encodeURIComponent(name)}`)
+    await saveAndNavigate(paper, data)
   }
 
-  const isInLibrary = (paper: PaperResult) => {
+  const handleUpload = async (paper: PaperResult, file: File) => {
+    const data = await file.arrayBuffer()
+    await saveAndNavigate(paper, data)
+  }
+
+  // Returns the saved filename if the paper is in the library, null otherwise
+  const getLibraryName = (paper: PaperResult): string | null => {
+    if (addedPapers.has(paper.id)) return addedPapers.get(paper.id)!
     const base = makePdfName(paper)
-    return libraryNames.has(base) || addedNames.has(base)
+    if (libraryNames.has(base)) return base
+    return null
   }
 
   const sorted = sortResults(
-    results.filter(p => p.openAccessUrl || isInLibrary(p)),
+    results.filter(p => p.openAccessUrl || getLibraryName(p) !== null),
     sortBy,
   )
 
@@ -387,8 +426,9 @@ export default function Research() {
             <PaperCard
               key={paper.id}
               paper={paper}
-              inLibrary={isInLibrary(paper)}
+              libraryName={getLibraryName(paper)}
               onAdd={handleAdd}
+              onUpload={handleUpload}
             />
           ))}
         </div>
