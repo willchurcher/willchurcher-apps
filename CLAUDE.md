@@ -35,6 +35,17 @@ willchurcher-apps/
 4. Add entry to TASKS.md
 5. Push to GitHub — Vercel auto-deploys
 
+## Specs — MANDATORY
+
+Every app has a spec at `specs/{app-name}.md`. **After every feature change or bug fix, you must update the relevant spec to match what was actually built.** This is not optional.
+
+- Specs live at `/specs/*.md` (repo root, source of truth)
+- The `predev`/`prebuild` npm scripts auto-copy them to `apps/example/public/specs/` — never manually copy
+- When adding a new spec file: create it in `/specs/`, add it to `SPECS` array in `Specs.tsx`
+- The Specs app at `/specs` reads from `/public/specs/` at runtime
+
+**If you change app functionality and don't update the spec, the spec is wrong. Fix it before committing.**
+
 ## Conventions
 - All apps are routes within the single Vite project (`apps/example`)
 - App names: lowercase, hyphenated (e.g. `todo-list`, `pomodoro`)

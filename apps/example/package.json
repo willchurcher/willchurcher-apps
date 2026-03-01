@@ -4,6 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "sync-specs": "mkdir -p public/specs && cp ../../specs/*.md public/specs/",
+    "predev": "npm run sync-specs",
+    "prebuild": "npm run sync-specs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
