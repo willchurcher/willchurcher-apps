@@ -915,3 +915,234 @@ a { color: inherit; text-decoration: none; }
   text-transform: uppercase;
   border-top: 1px solid var(--border);
 }
+
+/* ── Research page ───────────────────────────────────────── */
+.research-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.research-search-bar {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.research-input {
+  flex: 1;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s;
+  /* Prevent iOS zoom on focus */
+  font-size: max(16px, 0.85rem);
+}
+
+.research-input:focus { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.research-input::placeholder { color: var(--muted-hi); }
+
+/* Clear button injected by type=search */
+.research-input::-webkit-search-cancel-button { filter: invert(0.5); cursor: pointer; }
+
+.research-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.research-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.research-sort-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--text2);
+  text-transform: uppercase;
+}
+
+.research-sort-select {
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.research-count {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--muted-hi);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.research-source-note {
+  font-size: 0.75rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+}
+
+.research-error {
+  font-size: 0.78rem;
+  color: #e05a5a;
+  font-family: var(--font-mono);
+  background: rgba(224, 90, 90, 0.08);
+  border: 1px solid rgba(224, 90, 90, 0.25);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+}
+
+.research-loading,
+.research-empty {
+  text-align: center;
+  color: var(--muted-hi);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  padding: 2.5rem 0;
+}
+
+.research-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-bottom: 2rem;
+}
+
+/* ── Paper card ──────────────────────────────────────────── */
+.paper-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem 1.1rem;
+}
+
+.paper-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.paper-title {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.paper-year {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  white-space: nowrap;
+  padding-top: 0.1rem;
+  flex-shrink: 0;
+}
+
+.paper-card-meta {
+  font-size: 0.75rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+}
+
+.paper-journal { color: var(--muted-hi); }
+
+.paper-doi-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.paper-doi-link:hover { text-decoration: underline; }
+
+.paper-card-metrics {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text2);
+}
+
+.paper-card-metrics span { white-space: nowrap; }
+
+.paper-abstract {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--text2);
+  line-height: 1.65;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+}
+
+.paper-expand-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+.paper-expand-btn:active { opacity: 0.6; }
+
+.paper-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+.paper-doi-btn {
+  font-size: 0.78rem;
+  padding: 0.45rem 0.9rem;
+  color: var(--text2);
+}
+
+.paper-add-btn {
+  font-size: 0.78rem;
+  padding: 0.45rem 0.9rem;
+}
+
+.paper-in-library {
+  background: rgba(94, 180, 120, 0.12) !important;
+  color: #5eb478 !important;
+  border-color: rgba(94, 180, 120, 0.3) !important;
+  cursor: default !important;
+}
+
+.paper-no-pdf {
+  opacity: 0.35;
+  cursor: not-allowed !important;
+}
+
+.paper-add-error {
+  font-size: 0.73rem;
+  color: #e05a5a;
+  font-family: var(--font-mono);
+  margin: 0;
+}

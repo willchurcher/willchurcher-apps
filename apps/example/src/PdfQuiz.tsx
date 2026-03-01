@@ -357,7 +357,19 @@ export default function PdfQuiz() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    listPdfs().then(list => setDocs(list.sort((a, b) => b.addedAt - a.addedAt)))
+    listPdfs().then(async list => {
+      const sorted = list.sort((a, b) => b.addedAt - a.addedAt)
+      setDocs(sorted)
+      const params = new URLSearchParams(window.location.search)
+      const nameParam = params.get('name')
+      if (nameParam) {
+        const match = sorted.find(d => d.name === nameParam)
+        if (match) {
+          const data = await loadPdfData(match.id)
+          setViewer({ docId: match.id, data, name: match.name })
+        }
+      }
+    })
   }, [])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

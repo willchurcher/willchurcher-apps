@@ -4,6 +4,7 @@ import './App.css'
 import { ThemeProvider } from './ThemeContext'
 import RainfallDistribution from './RainfallDistribution'
 import PdfQuiz from './PdfQuiz'
+import Research from './Research'
 import { HeaderRight } from './HeaderRight'
 
 // ── App registry ────────────────────────────────────────────
@@ -12,6 +13,7 @@ const APP_LIST = [
   { name: 'Notes',    path: '/notes',    icon: '📋', gradient: 'linear-gradient(145deg, #2a7855, #1a4a32)' },
   { name: 'Rainfall', path: '/rainfall', icon: '🌧', gradient: 'linear-gradient(145deg, #3a6888, #7eb8d4)' },
   { name: 'PDF',      path: '/pdf',      icon: '📄', gradient: 'linear-gradient(145deg, #5a3a8a, #2a1a4a)' },
+  { name: 'Research', path: '/research', icon: '🔬', gradient: 'linear-gradient(145deg, #4a7a3a, #1a3a1a)' },
 ]
 
 // ── Shared page shell ────────────────────────────────────────
@@ -290,6 +292,7 @@ export default function App() {
           <Route path="/notes"     element={<Notes />} />
           <Route path="/rainfall"  element={<RainfallDistribution />} />
           <Route path="/pdf"       element={<PdfQuiz />} />
+          <Route path="/research"  element={<Research />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
