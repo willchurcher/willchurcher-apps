@@ -28,6 +28,38 @@ interface PaperResult {
 
 type SortKey = 'relevance' | 'citations' | 'influential' | 'newest' | 'oldest'
 
+// ── Search cache (localStorage, 24 hr TTL) ────────────────────────────────────
+
+const CACHE_KEY      = 'research-cache'
+const LAST_QUERY_KEY = 'research-last-query'
+const CACHE_TTL      = 24 * 60 * 60 * 1000
+
+interface CacheEntry {
+  results:    PaperResult[]
+  sourceNote: string | null
+  timestamp:  number
+}
+
+function readCache(): Record<string, CacheEntry> {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}') } catch { return {} }
+}
+
+function getCached(query: string): CacheEntry | null {
+  const entry = readCache()[query.toLowerCase()]
+  if (!entry || Date.now() - entry.timestamp > CACHE_TTL) return null
+  return entry
+}
+
+function setCached(query: string, entry: CacheEntry) {
+  const cache = readCache()
+  cache[query.toLowerCase()] = entry
+  // Prune expired entries to keep storage tidy
+  for (const k of Object.keys(cache)) {
+    if (Date.now() - cache[k].timestamp > CACHE_TTL) delete cache[k]
+  }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)) } catch { /* storage full */ }
+}
+
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 function invertedIndexToAbstract(inv: Record<string, number[]>): string {
@@ -297,11 +329,33 @@ export default function Research() {
 
   useEffect(() => {
     listPdfs().then(docs => setLibraryNames(new Set(docs.map(d => d.name))))
+
+    // Restore last search from cache on mount
+    const lastQuery = localStorage.getItem(LAST_QUERY_KEY) ?? ''
+    if (!lastQuery) return
+    const cached = getCached(lastQuery)
+    if (!cached) return
+    setQuery(lastQuery)
+    setResults(cached.results)
+    setSourceNote(cached.sourceNote)
+    setSearched(true)
   }, [])
 
   const search = async () => {
     const q = query.trim()
     if (!q) return
+
+    // Cache hit — instant restore
+    const cached = getCached(q)
+    if (cached) {
+      setResults(cached.results)
+      setSourceNote(cached.sourceNote)
+      setSearched(true)
+      setError(null)
+      localStorage.setItem(LAST_QUERY_KEY, q)
+      return
+    }
+
     setLoading(true)
     setError(null)
     setSourceNote(null)
@@ -320,10 +374,16 @@ export default function Research() {
       setError('Search failed. Check your connection and try again.')
       return
     }
-    if (!ssResults) setSourceNote('Semantic Scholar unavailable — showing OpenAlex results only.')
-    if (!oaResults)  setSourceNote('OpenAlex unavailable — showing Semantic Scholar results only.')
 
-    setResults(mergeResults(ssResults ?? [], oaResults ?? []))
+    const note = !ssResults ? 'Semantic Scholar unavailable — showing OpenAlex results only.'
+               : !oaResults  ? 'OpenAlex unavailable — showing Semantic Scholar results only.'
+               : null
+    const merged = mergeResults(ssResults ?? [], oaResults ?? [])
+
+    setSourceNote(note)
+    setResults(merged)
+    setCached(q, { results: merged, sourceNote: note, timestamp: Date.now() })
+    localStorage.setItem(LAST_QUERY_KEY, q)
   }
 
   const saveAndNavigate = async (paper: PaperResult, data: ArrayBuffer) => {
