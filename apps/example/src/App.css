@@ -1180,6 +1180,7 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer;
   text-align: left;
   width: 100%;
+  font-family: var(--font-mono);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
