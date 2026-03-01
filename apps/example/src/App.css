@@ -1206,11 +1206,9 @@ a { color: inherit; text-decoration: none; }
   padding: 1rem;
 }
 
-/* Rendered markdown */
+/* Rendered markdown — font-size and line-height set dynamically via inline style */
 .specs-markdown {
   color: var(--text1);
-  line-height: 1.65;
-  font-size: 0.88rem;
 }
 
 .specs-markdown h1 { font-family: var(--font-display); font-size: 1.8rem; margin: 0 0 1rem; color: var(--accent); }
@@ -1263,3 +1261,66 @@ a { color: inherit; text-decoration: none; }
 }
 
 .specs-markdown th { background: var(--surface2); color: var(--accent); }
+
+/* Options panel */
+.specs-options-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+  min-width: 200px;
+}
+
+.specs-opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.specs-opt-label {
+  font-size: 0.78rem;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.specs-opt-btns {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.specs-opt-btn {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+}
+
+.specs-opt-active {
+  background: var(--accent) !important;
+  color: #080c18 !important;
+  border-color: var(--accent) !important;
+}
+
+.specs-save-btn {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  padding: 0.45rem 0.9rem;
+  align-self: stretch;
+  text-align: center;
+}
+
+/* Saved toast */
+.specs-saved-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #080c18;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  padding: 0.5rem 1.25rem;
+  border-radius: 20px;
+  z-index: 300;
+  pointer-events: none;
+}
