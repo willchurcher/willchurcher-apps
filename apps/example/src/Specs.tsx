@@ -17,17 +17,28 @@ const SPECS = [
 // ── Typography settings ────────────────────────────────────────────────────────
 
 interface SpecsSettings {
-  fontSize:   'sm' | 'md' | 'lg'
-  lineHeight: 'compact' | 'normal' | 'relaxed'
-  margin:     'tight' | 'normal' | 'wide'
+  fontSize:     number   // rem  e.g. 0.88
+  lineHeight:   number   // unitless e.g. 1.65
+  sidePadding:  number   // rem  e.g. 1.0  (left + right margin from screen edge)
+  h1Size:       number   // rem  e.g. 1.80
+  h2Size:       number   // rem  e.g. 1.05
+  h3Size:       number   // rem  e.g. 0.92
+  paragraphGap: number   // rem  e.g. 0.75 (space after p / list block)
+  listIndent:   number   // rem  e.g. 1.40 (ul/ol padding-left)
 }
 
-const DEFAULTS: SpecsSettings = { fontSize: 'md', lineHeight: 'normal', margin: 'normal' }
-const SETTINGS_KEY = 'specs-settings'
+const DEFAULTS: SpecsSettings = {
+  fontSize:     0.88,
+  lineHeight:   1.65,
+  sidePadding:  1.00,
+  h1Size:       1.80,
+  h2Size:       1.05,
+  h3Size:       0.92,
+  paragraphGap: 0.75,
+  listIndent:   1.40,
+}
 
-const FONT_SIZES   = { sm: '0.78rem', md: '0.88rem',  lg: '1.0rem'  }
-const LINE_HEIGHTS = { compact: '1.4', normal: '1.65', relaxed: '1.9' }
-const MARGINS      = { tight: '0.5rem 0.75rem', normal: '1rem 1.25rem', wide: '1.5rem 2.5rem' }
+const SETTINGS_KEY = 'specs-settings'
 
 function loadSettings(): SpecsSettings {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') } }
@@ -36,51 +47,55 @@ function loadSettings(): SpecsSettings {
 
 // ── Options panel ──────────────────────────────────────────────────────────────
 
-function SpecsOptions({ settings, onChange, onSave }: {
+const SLIDERS: {
+  key:   keyof SpecsSettings
+  label: string
+  min:   number
+  max:   number
+  step:  number
+  unit:  string
+}[] = [
+  { key: 'fontSize',     label: 'Body font size',   min: 0.68, max: 1.20, step: 0.01, unit: 'rem' },
+  { key: 'lineHeight',   label: 'Line height',       min: 1.10, max: 2.20, step: 0.05, unit: ''    },
+  { key: 'sidePadding',  label: 'Side margin',       min: 0.00, max: 2.50, step: 0.05, unit: 'rem' },
+  { key: 'h1Size',       label: 'H1 size',           min: 1.20, max: 2.80, step: 0.05, unit: 'rem' },
+  { key: 'h2Size',       label: 'H2 size',           min: 0.82, max: 1.60, step: 0.05, unit: 'rem' },
+  { key: 'h3Size',       label: 'H3 size',           min: 0.75, max: 1.40, step: 0.05, unit: 'rem' },
+  { key: 'paragraphGap', label: 'Paragraph gap',     min: 0.10, max: 1.50, step: 0.05, unit: 'rem' },
+  { key: 'listIndent',   label: 'List indent',       min: 0.50, max: 3.00, step: 0.10, unit: 'rem' },
+]
+
+function SpecsOptions({ settings, onChange, onSave, onReset }: {
   settings: SpecsSettings
   onChange: (s: SpecsSettings) => void
   onSave:   () => void
+  onReset:  () => void
 }) {
-  function ToggleRow<K extends keyof SpecsSettings>({ label, field, options }: {
-    label:   string
-    field:   K
-    options: { value: SpecsSettings[K]; label: string }[]
-  }) {
-    return (
-      <div className="specs-opt-row">
-        <span className="specs-opt-label">{label}</span>
-        <div className="specs-opt-btns">
-          {options.map(o => (
-            <button
-              key={String(o.value)}
-              className={`btn specs-opt-btn ${settings[field] === o.value ? 'specs-opt-active' : ''}`}
-              onClick={() => onChange({ ...settings, [field]: o.value })}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="specs-options-panel">
-      <ToggleRow
-        label="Font size" field="fontSize"
-        options={[{ value: 'sm', label: 'S' }, { value: 'md', label: 'M' }, { value: 'lg', label: 'L' }]}
-      />
-      <ToggleRow
-        label="Spacing" field="lineHeight"
-        options={[{ value: 'compact', label: 'Tight' }, { value: 'normal', label: 'Normal' }, { value: 'relaxed', label: 'Open' }]}
-      />
-      <ToggleRow
-        label="Margin" field="margin"
-        options={[{ value: 'tight', label: 'Tight' }, { value: 'normal', label: 'Normal' }, { value: 'wide', label: 'Wide' }]}
-      />
-      <button className="btn btn-primary specs-save-btn" onClick={onSave}>
-        Save as default
-      </button>
+      {SLIDERS.map(s => (
+        <div key={s.key} className="specs-slider-row">
+          <div className="specs-slider-header">
+            <span className="specs-slider-label">{s.label}</span>
+            <span className="specs-slider-value">
+              {settings[s.key].toFixed(s.step < 0.05 ? 2 : 2)}{s.unit}
+            </span>
+          </div>
+          <input
+            type="range"
+            className="specs-slider"
+            min={s.min}
+            max={s.max}
+            step={s.step}
+            value={settings[s.key]}
+            onChange={e => onChange({ ...settings, [s.key]: Number(e.target.value) })}
+          />
+        </div>
+      ))}
+      <div className="specs-options-actions">
+        <button className="btn specs-opt-action-btn" onClick={onReset}>Reset</button>
+        <button className="btn btn-primary specs-opt-action-btn" onClick={onSave}>Save as default</button>
+      </div>
     </div>
   )
 }
@@ -114,11 +129,19 @@ export default function Specs() {
     setTimeout(() => setSaved(false), 1500)
   }
 
-  const contentStyle: React.CSSProperties = {
-    padding:      MARGINS[settings.margin],
-    fontSize:     FONT_SIZES[settings.fontSize],
-    lineHeight:   LINE_HEIGHTS[settings.lineHeight],
-  }
+  const handleReset = () => setSettings(DEFAULTS)
+
+  // CSS custom properties applied to the content wrapper
+  const contentVars = {
+    '--sm-fs':   `${settings.fontSize}rem`,
+    '--sm-lh':   `${settings.lineHeight}`,
+    '--sm-side': `${settings.sidePadding}rem`,
+    '--sm-h1':   `${settings.h1Size}rem`,
+    '--sm-h2':   `${settings.h2Size}rem`,
+    '--sm-h3':   `${settings.h3Size}rem`,
+    '--sm-pg':   `${settings.paragraphGap}rem`,
+    '--sm-li':   `${settings.listIndent}rem`,
+  } as React.CSSProperties
 
   return (
     <div className="page">
@@ -136,6 +159,7 @@ export default function Specs() {
             settings={settings}
             onChange={setSettings}
             onSave={handleSave}
+            onReset={handleReset}
           />
         )} />
       </header>
@@ -144,7 +168,7 @@ export default function Specs() {
 
       <div className="page-body specs-page">
         {selected ? (
-          <div className="specs-content" style={contentStyle}>
+          <div className="specs-content" style={contentVars}>
             {loadError && <p className="specs-error">Failed to load spec.</p>}
             {!markdown && !loadError && <p className="specs-loading">Loading…</p>}
             {markdown && (

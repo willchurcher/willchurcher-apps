@@ -1196,8 +1196,12 @@ a { color: inherit; text-decoration: none; }
 .specs-card-label { flex: 1; font-size: 0.95rem; color: var(--text1); }
 .specs-card-arrow { font-size: 1.2rem; color: var(--text2); }
 
+/* Content area — side padding controlled by --sm-side CSS var */
 .specs-content {
-  padding: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 2rem;
+  padding-left:  var(--sm-side, 1rem);
+  padding-right: var(--sm-side, 1rem);
 }
 
 .specs-loading,
@@ -1207,24 +1211,41 @@ a { color: inherit; text-decoration: none; }
   padding: 1rem;
 }
 
-/* Rendered markdown — font-size and line-height set dynamically via inline style */
+/* Rendered markdown — all sizing via CSS vars set on .specs-content */
 .specs-markdown {
   color: var(--text1);
+  font-size:   var(--sm-fs,   0.88rem);
+  line-height: var(--sm-lh,   1.65);
 }
 
-.specs-markdown h1 { font-family: var(--font-display); font-size: 1.8rem; margin: 0 0 1rem; color: var(--accent); }
-.specs-markdown h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
-.specs-markdown h3 { font-size: 0.92rem; margin: 1.2rem 0 0.4rem; color: var(--text1); }
-.specs-markdown p  { margin: 0 0 0.75rem; }
+.specs-markdown h1 {
+  font-family: var(--font-display);
+  font-size: var(--sm-h1, 1.80rem);
+  margin: 0 0 1rem;
+  color: var(--accent);
+}
+.specs-markdown h2 {
+  font-size: var(--sm-h2, 1.05rem);
+  margin: 1.5rem 0 0.5rem;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+}
+.specs-markdown h3 {
+  font-size: var(--sm-h3, 0.92rem);
+  margin: 1.2rem 0 0.4rem;
+  color: var(--text1);
+}
+.specs-markdown p  { margin: 0 0 var(--sm-pg, 0.75rem); }
 .specs-markdown ul,
-.specs-markdown ol { padding-left: 1.4rem; margin: 0 0 0.75rem; }
+.specs-markdown ol { padding-left: var(--sm-li, 1.4rem); margin: 0 0 var(--sm-pg, 0.75rem); }
 .specs-markdown li { margin-bottom: 0.25rem; }
 .specs-markdown a  { color: var(--accent); text-decoration: none; }
 .specs-markdown a:hover { text-decoration: underline; }
 
 .specs-markdown code {
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.82em;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -1237,21 +1258,21 @@ a { color: inherit; text-decoration: none; }
   border-radius: 8px;
   padding: 0.85rem 1rem;
   overflow-x: auto;
-  margin: 0 0 0.75rem;
+  margin: 0 0 var(--sm-pg, 0.75rem);
 }
 
 .specs-markdown pre code {
   background: none;
   border: none;
   padding: 0;
-  font-size: 0.8rem;
+  font-size: 0.9em;
 }
 
 .specs-markdown table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0 0 0.75rem;
-  font-size: 0.82rem;
+  margin: 0 0 var(--sm-pg, 0.75rem);
+  font-size: 0.9em;
 }
 
 .specs-markdown th,
@@ -1263,50 +1284,57 @@ a { color: inherit; text-decoration: none; }
 
 .specs-markdown th { background: var(--surface2); color: var(--accent); }
 
-/* Options panel */
+/* Options panel — scrollable for 8 sliders */
 .specs-options-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.25rem 0;
-  min-width: 200px;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  min-width: 240px;
+  max-height: 65vh;
+  overflow-y: auto;
 }
 
-.specs-opt-row {
+.specs-slider-row {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.specs-slider-header {
+  display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  align-items: baseline;
 }
 
-.specs-opt-label {
-  font-size: 0.78rem;
+.specs-slider-label {
+  font-size: 0.73rem;
   color: var(--text2);
-  white-space: nowrap;
 }
 
-.specs-opt-btns {
+.specs-slider-value {
+  font-size: 0.73rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.specs-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 4px;
+}
+
+.specs-options-actions {
   display: flex;
-  gap: 0.3rem;
-}
-
-.specs-opt-btn {
-  font-size: 0.72rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-}
-
-.specs-opt-active {
-  background: var(--accent) !important;
-  color: #080c18 !important;
-  border-color: var(--accent) !important;
-}
-
-.specs-save-btn {
+  gap: 0.5rem;
   margin-top: 0.25rem;
-  font-size: 0.78rem;
-  padding: 0.45rem 0.9rem;
-  align-self: stretch;
+}
+
+.specs-opt-action-btn {
+  flex: 1;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.5rem;
   text-align: center;
 }
 
