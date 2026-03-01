@@ -361,12 +361,16 @@ export default function Research() {
     navigate(`/pdf?name=${encodeURIComponent(name)}`)
   }
 
-  const sorted = sortResults(results, sortBy, hIndexCache)
-
   const isInLibrary = (paper: PaperResult) => {
     const base = makePdfName(paper)
     return libraryNames.has(base) || addedNames.has(base)
   }
+
+  const sorted = sortResults(
+    results.filter(p => p.openAccessUrl || isInLibrary(p)),
+    sortBy,
+    hIndexCache,
+  )
 
   return (
     <div className="page">
@@ -411,7 +415,7 @@ export default function Research() {
                 ))}
               </select>
             </div>
-            <span className="research-count">{results.length} results</span>
+            <span className="research-count">{sorted.length} of {results.length} results</span>
           </div>
         )}
 
