@@ -72,9 +72,11 @@ Two screens toggled by `viewer` state in root `PdfQuiz`:
 
 ## Sidebar (`.pdf-sidebar`)
 
-Width: 44px. `position: relative; overflow: visible; cursor: crosshair`.
+Width: 44px. `position: sticky; right: 0; align-self: stretch; z-index: 10; overflow: visible; cursor: crosshair`.
 `border-left: 1px solid var(--border); background: var(--surface)`.
 Shares the same scroll container as the PDF — no JS sync needed.
+
+**Why `position: sticky`:** when the PDF is zoomed in (wider than the viewport), the scroll container overflows horizontally. `sticky; right: 0` keeps the sidebar anchored to the right edge of the viewport during horizontal scroll, so it never scrolls off-screen.
 
 **Tap empty space:**
 ```
