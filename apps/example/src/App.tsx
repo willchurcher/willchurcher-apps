@@ -6,6 +6,7 @@ import RainfallDistribution from './RainfallDistribution'
 import PdfQuiz from './PdfQuiz'
 import Research from './Research'
 import Specs from './Specs'
+import OptionsLab from './OptionsLab'
 import { HeaderRight } from './HeaderRight'
 
 // ── App registry ────────────────────────────────────────────
@@ -15,6 +16,7 @@ const APP_LIST = [
   { name: 'Rainfall', path: '/rainfall', icon: '🌧', gradient: 'linear-gradient(145deg, #3a6888, #7eb8d4)' },
   { name: 'PDF',      path: '/pdf',      icon: '📄', gradient: 'linear-gradient(145deg, #5a3a8a, #2a1a4a)' },
   { name: 'Research', path: '/research', icon: '🔬', gradient: 'linear-gradient(145deg, #4a7a3a, #1a3a1a)' },
+  { name: 'Options',  path: '/options',  icon: '📈', gradient: 'linear-gradient(145deg, #2a5a8a, #1a2a5a)' },
   { name: 'Specs',    path: '/specs',    icon: '📖', gradient: 'linear-gradient(145deg, #6a4a2a, #3a2010)' },
 ]
 
@@ -295,6 +297,7 @@ export default function App() {
           <Route path="/rainfall"  element={<RainfallDistribution />} />
           <Route path="/pdf"       element={<PdfQuiz />} />
           <Route path="/research"  element={<Research />} />
+          <Route path="/options"   element={<OptionsLab />} />
           <Route path="/specs"     element={<Specs />} />
         </Routes>
       </BrowserRouter>

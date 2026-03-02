@@ -1418,3 +1418,297 @@ a { color: inherit; text-decoration: none; }
   z-index: 300;
   pointer-events: none;
 }
+
+/* ── Options Lab ─────────────────────────────────────────────── */
+
+.opt-tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.opt-tab {
+  flex: 1;
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.opt-tab.active {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.opt-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.opt-slider-row {
+  display: grid;
+  grid-template-columns: 18px 1fr 52px;
+  align-items: center;
+  gap: 10px;
+}
+
+.opt-slider-lbl {
+  font-size: 0.85rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-style: italic;
+  text-align: center;
+}
+
+.opt-slider-val {
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.opt-slider-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 4px;
+  cursor: pointer;
+}
+
+/* Moneyness badge */
+.opt-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.opt-badge-deep-itm { background: rgba(90,200,90,0.12);   color: #5ac878; border: 1px solid #5ac878; }
+.opt-badge-itm      { background: rgba(126,184,212,0.12); color: var(--accent); border: 1px solid var(--accent); }
+.opt-badge-atm      { background: rgba(232,181,58,0.12);  color: #e8b53a; border: 1px solid #e8b53a; }
+.opt-badge-otm      { background: rgba(200,112,64,0.12);  color: #c87040; border: 1px solid #c87040; }
+.opt-badge-deep-otm { background: rgba(200,60,60,0.12);   color: #c84040; border: 1px solid #c84040; }
+
+.opt-intuition {
+  font-size: 0.74rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+
+/* Price cards */
+.opt-price-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.opt-price-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.opt-price-card-put {
+  border-color: rgba(200,120,160,0.3);
+}
+
+.opt-price-label {
+  font-size: 0.68rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.opt-price-value {
+  font-size: 1.6rem;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+}
+
+.opt-price-value-put { color: #c878a0; }
+
+.opt-price-sub {
+  font-size: 0.63rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+}
+
+/* Put-call parity */
+.opt-pcp {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.opt-pcp:last-child { border-bottom: none; }
+.opt-pcp-label { color: var(--text2); }
+.opt-pcp-val { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* Greeks table */
+.opt-greeks {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
+.opt-greeks th {
+  text-align: left;
+  color: var(--text2);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.opt-greeks td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.opt-greeks tr:last-child td { border-bottom: none; }
+
+.opt-td-val {
+  text-align: right;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.opt-td-neg {
+  text-align: right;
+  color: #c87070;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chart wrappers */
+.opt-chart-wrap {
+  margin-bottom: 10px;
+}
+
+.opt-chart-title {
+  font-size: 0.68rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 3px;
+}
+
+.opt-legend {
+  display: flex;
+  gap: 12px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.opt-legend-item {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.opt-legend-line {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Insight text between charts */
+.opt-insight {
+  font-size: 0.73rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  line-height: 1.55;
+  margin: 8px 0 14px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.opt-insight strong { color: var(--text); }
+
+/* Payoff type toggle */
+.opt-type-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.opt-type-btn {
+  flex: 1;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text2);
+  font-family: var(--font-mono);
+  font-size: 0.77rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.opt-type-btn.active {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.opt-type-btn.active-put {
+  border-color: rgba(200,120,160,0.6);
+  color: #c878a0;
+  background: rgba(200,120,160,0.08);
+}
+
+/* Sensitivity controls */
+.opt-sens-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.opt-sens-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  appearance: auto;
+}
