@@ -46,6 +46,18 @@ Every app has a spec at `specs/{app-name}.md`. **After every feature change or b
 
 **If you change app functionality and don't update the spec, the spec is wrong. Fix it before committing.**
 
+## Bash command rules — MANDATORY
+
+**Never combine `cd` with any other command in a single Bash call.** Claude Code rejects compound commands like these:
+- `cd apps/example && npm run build` ❌
+- `cd /root/willchurcher-apps && git add ...` ❌
+- `git commit -m "$(cat <<'EOF'...)"` ❌ — no `$()` substitution in commit messages
+
+Always use **absolute paths** or **separate Bash calls** instead:
+- Run `npm run build` with `cwd` set, or use the full path directly ✓
+- Run `git add` from `/root/willchurcher-apps` as a separate call ✓
+- Commit messages must be plain strings: `git commit -m "plain message"` ✓
+
 ## Conventions
 - All apps are routes within the single Vite project (`apps/example`)
 - App names: lowercase, hyphenated (e.g. `todo-list`, `pomodoro`)
