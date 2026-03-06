@@ -7,6 +7,7 @@ import PdfQuiz from './PdfQuiz'
 import Research from './Research'
 import Specs from './Specs'
 import OptionsLab from './OptionsLab'
+import VoicePlanner from './VoicePlanner'
 import { HeaderRight } from './HeaderRight'
 
 // ── App registry ────────────────────────────────────────────
@@ -18,6 +19,7 @@ const APP_LIST = [
   { name: 'Research', path: '/research', icon: '🔬', gradient: 'linear-gradient(145deg, #4a7a3a, #1a3a1a)' },
   { name: 'Options',  path: '/options',  icon: '📈', gradient: 'linear-gradient(145deg, #2a5a8a, #1a2a5a)' },
   { name: 'Specs',    path: '/specs',    icon: '📖', gradient: 'linear-gradient(145deg, #6a4a2a, #3a2010)' },
+  { name: 'Planner',  path: '/planner',  icon: '🎙', gradient: 'linear-gradient(145deg, #4a2a6a, #1a0a3a)' },
 ]
 
 // ── Shared page shell ────────────────────────────────────────
@@ -299,6 +301,7 @@ export default function App() {
           <Route path="/research"  element={<Research />} />
           <Route path="/options"   element={<OptionsLab />} />
           <Route path="/specs"     element={<Specs />} />
+          <Route path="/planner"   element={<VoicePlanner />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
