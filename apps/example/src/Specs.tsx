@@ -6,7 +6,8 @@ import { HeaderRight } from './HeaderRight'
 // ── Spec registry ──────────────────────────────────────────────────────────────
 
 const SPECS = [
-  { key: 'auth',           label: 'Auth & Backend',  icon: '🔐' },
+  { key: 'auth',           label: 'Auth & Backend',      icon: '🔐' },
+  { key: 'cpp-ingest-pipeline', label: 'C++ Ingest Pipeline', icon: '⚙' },
   { key: 'global-styles',  label: 'Global Styles',   icon: '🎨' },
   { key: 'pdf-viewer',     label: 'PDF Viewer',       icon: '📄' },
   { key: 'research',       label: 'Research',         icon: '🔬' },
