@@ -263,16 +263,14 @@ interface EditSheetProps {
   mode: 'edit' | 'new'
   card?: Flashcard
   chapter: string
-  initialImportance?: Importance
-  onSave: (q: string, a: string, importance: Importance) => void
+  onSave: (q: string, a: string) => void
   onClose: () => void
 }
 
-function EditSheet({ mode, card, chapter, initialImportance = 0, onSave, onClose }: EditSheetProps) {
+function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
   const [q, setQ]             = useState(card?.q ?? '')
   const [a, setA]             = useState(card?.a ?? '')
   const [aiNote, setAiNote]   = useState('')
-  const [importance, setImp]  = useState<Importance>(initialImportance)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
   const [visible, setVisible] = useState(false)
@@ -286,7 +284,7 @@ function EditSheet({ mode, card, chapter, initialImportance = 0, onSave, onClose
 
   function handleSave() {
     if (!q.trim() || !a.trim()) return
-    onSave(q.trim(), a.trim(), importance)
+    onSave(q.trim(), a.trim())
     handleClose()
   }
 
@@ -355,19 +353,6 @@ function EditSheet({ mode, card, chapter, initialImportance = 0, onSave, onClose
             onChange={e => setAiNote(e.target.value)}
             placeholder='e.g. "expand on what portability means here"'
           />
-
-          <label className="fq-edit-label">Importance</label>
-          <div className="fq-importance-row">
-            {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
-              <button
-                key={v}
-                className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${importance === v ? ' fq-imp-active' : ''}`}
-                onClick={() => setImp(v)}
-              >
-                {IMPORTANCE_NAMES[v]}
-              </button>
-            ))}
-          </div>
 
           {error && <p className="fq-edit-error">{error}</p>}
 
@@ -544,14 +529,11 @@ export default function CppFlashcards() {
     setGraduated(0)
   }
 
-  function handleSaveEdit(q: string, a: string, imp: Importance) {
+  function handleSaveEdit(q: string, a: string) {
     if (!card) return
     const newOverrides = { ...overrides, [card.id]: { q, a } }
     setOverrides(newOverrides)
     saveOverrides(newOverrides)
-    const newImpMap = { ...importanceMap, [card.id]: imp }
-    setImportanceMap(newImpMap)
-    saveImportance(newImpMap)
   }
 
   function handleArchive() {
@@ -564,16 +546,13 @@ export default function CppFlashcards() {
     setGraduated(g => g + 1)
   }
 
-  function handleSaveNew(q: string, a: string, imp: Importance) {
+  function handleSaveNew(q: string, a: string) {
     const id  = Date.now()
     const ch  = chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter
     const newCard: Flashcard = { id, chapter: ch, topic: 'Custom', noteSection: '', q, a }
     const newCustoms = [...customs, newCard]
     setCustoms(newCustoms)
     saveCustomCards(newCustoms)
-    const newImpMap = { ...importanceMap, [id]: imp }
-    setImportanceMap(newImpMap)
-    saveImportance(newImpMap)
   }
 
   const totalSession = graduated + queue.length
@@ -773,6 +752,28 @@ export default function CppFlashcards() {
             )
           })}
         </div>
+
+        {/* Importance selector */}
+        {card && (
+          <div className="fq-importance-selector">
+            <span className="fq-importance-label">Importance</span>
+            <div className="fq-importance-row">
+              {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+                <button
+                  key={v}
+                  className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${cardImportance === v ? ' fq-imp-active' : ''}`}
+                  onClick={() => {
+                    const newImpMap = { ...importanceMap, [card.id]: v }
+                    setImportanceMap(newImpMap)
+                    saveImportance(newImpMap)
+                  }}
+                >
+                  {IMPORTANCE_NAMES[v]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sheets */}
@@ -784,7 +785,6 @@ export default function CppFlashcards() {
           mode="edit"
           card={card}
           chapter={card.chapter}
-          initialImportance={cardImportance}
           onSave={handleSaveEdit}
           onClose={() => setEditOpen(false)}
         />

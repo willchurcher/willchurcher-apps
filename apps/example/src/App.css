@@ -2394,7 +2394,25 @@ a { color: inherit; text-decoration: none; }
 .fq-imp-pill-1.fq-pill-active  { background: rgba(80,180,100,0.15);border-color: rgba(80,180,100,0.4); color: #50c870; }
 .fq-imp-pill-2.fq-pill-active  { background: rgba(40,160,80,0.2);  border-color: rgba(40,160,80,0.45); color: #30c860; }
 
-/* Importance buttons in edit sheet */
+/* Inline importance selector (below rating buttons) */
+.fq-importance-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+.fq-importance-label {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+  text-align: center;
+}
+
+/* Importance buttons in edit sheet and inline selector */
 .fq-importance-row {
   display: flex;
   gap: 0.3rem;
