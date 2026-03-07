@@ -1889,6 +1889,7 @@ a { color: inherit; text-decoration: none; }
   user-select: text;
   -webkit-user-select: text;
 }
+.fq-q-text p { margin: 0; }
 
 .fq-a-text {
   font-family: var(--font-mono);
@@ -1896,10 +1897,27 @@ a { color: inherit; text-decoration: none; }
   color: var(--text);
   line-height: 1.7;
   margin: 0;
-  white-space: pre-line;
   text-align: left;
   user-select: text;
   -webkit-user-select: text;
+  width: 100%;
+}
+.fq-a-text p               { margin: 0 0 0.5rem; }
+.fq-a-text p:last-child    { margin-bottom: 0; }
+.fq-a-text ul,
+.fq-a-text ol              { margin: 0 0 0.5rem; padding-left: 1.5em; }
+.fq-a-text ul:last-child,
+.fq-a-text ol:last-child   { margin-bottom: 0; }
+.fq-a-text li              { margin-bottom: 0.2rem; }
+.fq-a-text li:last-child   { margin-bottom: 0; }
+.fq-a-text ul ul,
+.fq-a-text ol ol           { margin: 0.15rem 0 0; }
+.fq-a-text code {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+  font-size: 0.9em;
 }
 
 /* Bucket bar */

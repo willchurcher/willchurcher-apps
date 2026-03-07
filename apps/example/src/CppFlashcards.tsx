@@ -208,19 +208,22 @@ Answer formatting rules:
 - Use \\n for line breaks within the answer string.`
 }
 
-// ── Inline markdown renderer ───────────────────────────────────
+// ── Markdown renderer ──────────────────────────────────────────
+// Converts • bullets → proper markdown list items so marked can render them,
+// then runs the full block parser (supports lists, indented lists, code, etc.)
+function preprocessMd(text: string): string {
+  return text
+    .split('\n')
+    .map(line => {
+      const m = line.match(/^(\s*)•\s+(.*)/)
+      return m ? `${m[1]}- ${m[2]}` : line
+    })
+    .join('\n')
+}
+
 function CardText({ text, className }: { text: string; className: string }) {
-  const lines = text.split('\n')
-  return (
-    <p className={className}>
-      {lines.map((line, i) => (
-        <span key={i}>
-          {i > 0 && <br />}
-          <span dangerouslySetInnerHTML={{ __html: marked.parseInline(line) as string }} />
-        </span>
-      ))}
-    </p>
-  )
+  const html = marked(preprocessMd(text)) as string
+  return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />
 }
 
 // ── Notes section extraction ───────────────────────────────────
