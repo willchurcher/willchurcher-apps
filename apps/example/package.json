@@ -4,11 +4,16 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "sync-specs": "mkdir -p public/specs && cp ../../specs/*.md public/specs/",
+    "predev": "npm run sync-specs",
+    "prebuild": "npm run sync-specs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "marked": "^17.0.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-pdf": "^10.4.1",

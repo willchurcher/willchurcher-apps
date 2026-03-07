@@ -2,8 +2,15 @@ import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-do
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
 import { ThemeProvider } from './ThemeContext'
+import { AuthProvider, useAuth } from './AuthContext'
+import { supabase } from './supabase'
+import Login from './Login'
 import RainfallDistribution from './RainfallDistribution'
 import PdfQuiz from './PdfQuiz'
+import Research from './Research'
+import Specs from './Specs'
+import OptionsLab from './OptionsLab'
+import VoicePlanner from './VoicePlanner'
 import { HeaderRight } from './HeaderRight'
 
 // ── App registry ────────────────────────────────────────────
@@ -12,6 +19,10 @@ const APP_LIST = [
   { name: 'Notes',    path: '/notes',    icon: '📋', gradient: 'linear-gradient(145deg, #2a7855, #1a4a32)' },
   { name: 'Rainfall', path: '/rainfall', icon: '🌧', gradient: 'linear-gradient(145deg, #3a6888, #7eb8d4)' },
   { name: 'PDF',      path: '/pdf',      icon: '📄', gradient: 'linear-gradient(145deg, #5a3a8a, #2a1a4a)' },
+  { name: 'Research', path: '/research', icon: '🔬', gradient: 'linear-gradient(145deg, #4a7a3a, #1a3a1a)' },
+  { name: 'Options',  path: '/options',  icon: '📈', gradient: 'linear-gradient(145deg, #2a5a8a, #1a2a5a)' },
+  { name: 'Specs',    path: '/specs',    icon: '📖', gradient: 'linear-gradient(145deg, #6a4a2a, #3a2010)' },
+  { name: 'Planner',  path: '/planner',  icon: '🎙', gradient: 'linear-gradient(145deg, #4a2a6a, #1a0a3a)' },
 ]
 
 // ── Shared page shell ────────────────────────────────────────
@@ -39,11 +50,16 @@ function AppPage({ title, children, options }: {
 
 // ── Home ─────────────────────────────────────────────────────
 function Home() {
+  const { signOut } = useAuth()
   return (
     <div className="home">
       <header className="page-header">
         <span className="page-header-title">Apps</span>
-        <HeaderRight />
+        <HeaderRight options={close => (
+          <button className="header-toast-item" onClick={() => { close(); signOut() }}>
+            Sign out
+          </button>
+        )} />
       </header>
       <div className="home-content">
         <div className="app-grid">
@@ -232,13 +248,26 @@ function Timer() {
 interface Note { id: number; text: string; time: string }
 
 function Notes() {
-  const [notes, setNotes] = useState<Note[]>(() => {
-    try { return JSON.parse(localStorage.getItem('notes') ?? '[]') } catch { return [] }
-  })
+  const { user } = useAuth()
+  const [notes, setNotes] = useState<Note[]>([])
+  const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
 
   useEffect(() => {
-    localStorage.setItem('notes', JSON.stringify(notes))
+    supabase.from('app_data').select('data').eq('app', 'notes').maybeSingle()
+      .then(({ data }) => {
+        setNotes((data?.data as Note[]) ?? [])
+        setLoading(false)
+      })
+  }, [])
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (loading) return
+    supabase.from('app_data').upsert(
+      { user_id: user!.id, app: 'notes', data: notes },
+      { onConflict: 'user_id,app' }
+    )
   }, [notes])
 
   const add = () => {
@@ -248,6 +277,12 @@ function Notes() {
     setNotes(prev => [{ id: Date.now(), text, time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...prev])
     setInput('')
   }
+
+  if (loading) return (
+    <AppPage title="Notes">
+      <div className="card" style={{ textAlign: 'center', color: 'var(--muted)', padding: '2rem' }}>Loading…</div>
+    </AppPage>
+  )
 
   return (
     <AppPage title="Notes">
@@ -279,19 +314,39 @@ function Notes() {
   )
 }
 
+// ── Auth gate ─────────────────────────────────────────────────
+function AppContent() {
+  const { user, loading } = useAuth()
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--muted)' }}>
+      …
+    </div>
+  )
+  if (!user) return <Login />
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/"          element={<Home />} />
+        <Route path="/timer"     element={<Timer />} />
+        <Route path="/notes"     element={<Notes />} />
+        <Route path="/rainfall"  element={<RainfallDistribution />} />
+        <Route path="/pdf"       element={<PdfQuiz />} />
+        <Route path="/research"  element={<Research />} />
+        <Route path="/options"   element={<OptionsLab />} />
+        <Route path="/specs"     element={<Specs />} />
+        <Route path="/planner"   element={<VoicePlanner />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
 // ── Router ───────────────────────────────────────────────────
 export default function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/"          element={<Home />} />
-          <Route path="/timer"     element={<Timer />} />
-          <Route path="/notes"     element={<Notes />} />
-          <Route path="/rainfall"  element={<RainfallDistribution />} />
-          <Route path="/pdf"       element={<PdfQuiz />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </ThemeProvider>
   )
 }
