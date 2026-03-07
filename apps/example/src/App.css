@@ -1712,3 +1712,231 @@ a { color: inherit; text-decoration: none; }
   cursor: pointer;
   appearance: auto;
 }
+
+/* ── C++ Flashcards ──────────────────────────────────────── */
+
+.fq-topics {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.65rem 1.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fq-topics::-webkit-scrollbar { display: none; }
+
+.fq-pill {
+  flex-shrink: 0;
+  padding: 0.28rem 0.65rem;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted-hi);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.fq-pill-active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+}
+
+.fq-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem 1.25rem 0.4rem;
+  flex-shrink: 0;
+}
+
+.fq-progress-bar {
+  height: 3px;
+  background: var(--surface2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.fq-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.35s ease;
+}
+
+.fq-progress-text {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--muted-hi);
+  text-transform: uppercase;
+}
+
+.fq-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1rem 1.25rem 2rem;
+}
+
+/* 3D flip card */
+.fq-scene {
+  width: 100%;
+  max-width: 480px;
+  perspective: 900px;
+  cursor: pointer;
+  position: relative;
+  min-height: 280px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.fq-card {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fq-card-flipped {
+  transform: rotateY(180deg);
+}
+
+.fq-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  padding: 1.75rem 1.5rem;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.fq-back {
+  transform: rotateY(180deg);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.fq-topic-badge {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 99px;
+  padding: 0.18rem 0.65rem;
+  flex-shrink: 0;
+}
+
+.fq-q-text {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--text);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.fq-flip-hint {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+  margin-top: auto;
+}
+
+.fq-answer-label {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.fq-a-text {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Action buttons */
+.fq-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+.fq-btn-still,
+.fq-btn-got {
+  flex: 1;
+}
+
+.fq-btn-still:disabled,
+.fq-btn-got:disabled {
+  opacity: 0.22;
+  cursor: default;
+  transform: none !important;
+}
+
+/* Completion screen */
+.fq-done-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 2rem;
+}
+
+.fq-done-check {
+  font-size: 3.5rem;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.fq-done-title {
+  font-family: var(--font-display);
+  font-size: 2.8rem;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.fq-done-sub {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--muted-hi);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fq-done-restart {
+  margin-top: 1rem;
+  padding: 0.65rem 2.5rem;
+}
