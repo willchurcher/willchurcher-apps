@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { marked } from 'marked'
 import { HeaderRight } from './HeaderRight'
 import { FLASHCARDS, CHAPTERS, CHAPTER_NAMES, type Flashcard } from './cpp-flashcards-data'
 
@@ -43,8 +44,6 @@ function saveProgress(p: ProgressMap) {
 }
 
 // ── Queue logic ────────────────────────────────────────────────
-// Priority: seen+due cards first (most overdue = lowest nextReview),
-//           unseen cards last (shuffled).
 function computeQueue(cards: Flashcard[], progress: ProgressMap): Flashcard[] {
   const now = Date.now()
   const due: Flashcard[]   = []
@@ -54,12 +53,10 @@ function computeQueue(cards: Flashcard[], progress: ProgressMap): Flashcard[] {
     const s = progress[c.id]
     if (!s)                        unseen.push(c)
     else if (s.nextReview <= now)  due.push(c)
-    // cards scheduled for the future are excluded
   }
 
   due.sort((a, b) => (progress[a.id]?.nextReview ?? 0) - (progress[b.id]?.nextReview ?? 0))
 
-  // shuffle unseen
   for (let i = unseen.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[unseen[i], unseen[j]] = [unseen[j], unseen[i]]
@@ -72,7 +69,6 @@ function getCards(chapter: string) {
   return chapter === 'all' ? FLASHCARDS : FLASHCARDS.filter(c => c.chapter === chapter)
 }
 
-// Earliest future due time
 function nextDueTs(progress: ProgressMap, chapter: string): number | null {
   const now = Date.now()
   let earliest: number | null = null
@@ -84,7 +80,89 @@ function nextDueTs(progress: ProgressMap, chapter: string): number | null {
   return earliest
 }
 
-// ── Bucket dots ────────────────────────────────────────────────
+// ── Notes section extraction ───────────────────────────────────
+function extractSection(md: string, heading: string): string {
+  const lines = md.split('\n')
+  let startIdx = -1
+  let headingLevel = 0
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(#{1,6})\s+(.+)/)
+    if (m && lines[i].toLowerCase().includes(heading.toLowerCase())) {
+      startIdx = i
+      headingLevel = m[1].length
+      break
+    }
+  }
+
+  if (startIdx === -1) return `*Section "${heading}" not found in notes.*`
+
+  const result = [lines[startIdx]]
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const m = lines[i].match(/^(#{1,6})\s/)
+    if (m && m[1].length <= headingLevel) break
+    result.push(lines[i])
+  }
+
+  return result.join('\n')
+}
+
+// ── Notes bottom sheet ─────────────────────────────────────────
+function NotesSheet({ card, onClose }: { card: Flashcard; onClose: () => void }) {
+  const [html, setHtml] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [visible, setVisible] = useState(false)
+  const sheetRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // Trigger slide-up animation after mount
+    requestAnimationFrame(() => setVisible(true))
+  }, [])
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/notes/cpp-chapter-${card.chapter}.md`)
+      .then(r => r.text())
+      .then(md => {
+        const section = extractSection(md, card.noteSection)
+        setHtml(marked(section) as string)
+      })
+      .catch(() => setHtml('<p><em>Could not load notes.</em></p>'))
+      .finally(() => setLoading(false))
+  }, [card.chapter, card.noteSection])
+
+  function handleClose() {
+    setVisible(false)
+    setTimeout(onClose, 280)
+  }
+
+  return (
+    <div
+      className={`fq-sheet-overlay${visible ? ' fq-sheet-overlay-visible' : ''}`}
+      onClick={handleClose}
+    >
+      <div
+        ref={sheetRef}
+        className={`fq-sheet${visible ? ' fq-sheet-visible' : ''}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="fq-sheet-handle" />
+        <div className="fq-sheet-header">
+          <span className="fq-sheet-section">{card.noteSection}</span>
+          <button className="fq-sheet-close" onClick={handleClose}>✕</button>
+        </div>
+        <div className="fq-sheet-body">
+          {loading
+            ? <p className="fq-sheet-loading">Loading…</p>
+            : <div className="fq-notes-md" dangerouslySetInnerHTML={{ __html: html }} />
+          }
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Bucket bar ────────────────────────────────────────────────
 function BucketBar({ bucket }: { bucket: number }) {
   const pct = Math.min(bucket / MAX_BUCKET, 1)
   const nextMs = bucketIntervalMs(bucket)
@@ -117,6 +195,7 @@ export default function CppFlashcards() {
     setChapter(ch)
     setRevealed(false)
     setGraduated(0)
+    setNotesOpen(false)
   }
 
   function rate(rating: Rating) {
@@ -134,7 +213,6 @@ export default function CppFlashcards() {
     }
     setProgress(newProgress)
     saveProgress(newProgress)
-    // Any rating schedules the card for the future, so it leaves the queue
     setGraduated(g => g + 1)
     setRevealed(false)
     setNotesOpen(false)
@@ -148,7 +226,6 @@ export default function CppFlashcards() {
     setGraduated(0)
   }
 
-  // Progress bar: graduated / (graduated + remaining due+unseen)
   const totalSession = graduated + queue.length
   const progressPct  = totalSession > 0 ? (graduated / totalSession) * 100 : 0
 
@@ -275,23 +352,10 @@ export default function CppFlashcards() {
         {revealed && (
           <button
             className="fq-notes-toggle"
-            onClick={() => setNotesOpen(o => !o)}
+            onClick={() => setNotesOpen(true)}
           >
-            {notesOpen ? '▲ Hide notes' : '▼ See notes'}
+            ▼ See notes
           </button>
-        )}
-
-        {/* Notes excerpt (topic label links conceptually to notes) */}
-        {revealed && notesOpen && (
-          <div className="fq-notes-panel">
-            <div className="fq-notes-header">
-              From notes · {card.topic}
-            </div>
-            <p className="fq-notes-text">
-              Your full notes are at <code>/root/cpp-notes.md</code>.
-              Topic: <strong>{card.topic}</strong> — search for it there for the full context and diagrams.
-            </p>
-          </div>
         )}
 
         {/* Rating buttons */}
@@ -310,6 +374,11 @@ export default function CppFlashcards() {
           </button>
         </div>
       </div>
+
+      {/* Notes bottom sheet */}
+      {notesOpen && card && (
+        <NotesSheet card={card} onClose={() => setNotesOpen(false)} />
+      )}
     </div>
   )
 }
