@@ -626,6 +626,24 @@ export default function CppFlashcards() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [revealed, card, bucket, progress])
 
+  function exportData() {
+    const data = {
+      overrides: loadOverrides(),
+      custom: loadCustomCards(),
+      progress: loadProgress(),
+      importance: loadImportance(),
+      graveyard: [...loadGraveyard()],
+    }
+    const json = JSON.stringify(data, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = 'cpp-flashcards-backup.json'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function resetProgress() {
     const cleared: ProgressMap = {}
     setProgress(cleared)
@@ -684,6 +702,7 @@ export default function CppFlashcards() {
           <HeaderRight options={close => (<>
             <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>New session</button>
             <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
+            <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
             <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
           </>)} />
         </header>
@@ -735,6 +754,7 @@ export default function CppFlashcards() {
         </div>
         <HeaderRight options={close => (<>
           <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
+          <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
           {graveyard.size > 0 && (
             <button className="header-toast-item" onClick={() => { close(); setGraveyard(new Set()); saveGraveyard(new Set()) }}>
