@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HeaderRight } from './HeaderRight'
+import { supabase } from './supabase'
+import { useAuth } from './AuthContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,20 +61,7 @@ interface ExtractedProject {
 
 // ── Storage ────────────────────────────────────────────────────────────────────
 
-const STORE_KEY = 'planner-store'
 const EMPTY_STORE: PlannerStore = { transcripts: [], projects: [], tasks: [] }
-
-function loadStore(): PlannerStore {
-  try {
-    return JSON.parse(localStorage.getItem(STORE_KEY) ?? 'null') ?? EMPTY_STORE
-  } catch {
-    return EMPTY_STORE
-  }
-}
-
-function saveStore(store: PlannerStore) {
-  localStorage.setItem(STORE_KEY, JSON.stringify(store))
-}
 
 function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
@@ -177,8 +166,18 @@ type ParseState = 'idle' | 'loading' | 'review' | 'error'
 
 export default function VoicePlanner() {
   const navigate = useNavigate()
-  const [store, setStore] = useState<PlannerStore>(loadStore)
+  const { user } = useAuth()
+  const [store, setStore] = useState<PlannerStore>(EMPTY_STORE)
+  const [storeLoading, setStoreLoading] = useState(true)
   const [view, setView] = useState<View>('home')
+
+  useEffect(() => {
+    supabase.from('app_data').select('data').eq('app', 'planner').maybeSingle()
+      .then(({ data }) => {
+        if (data?.data) setStore(data.data as unknown as PlannerStore)
+        setStoreLoading(false)
+      })
+  }, [])
   const [parseText, setParseText] = useState('')
   const [parseState, setParseState] = useState<ParseState>('idle')
   const [extracted, setExtracted] = useState<ExtractedProject[]>([])
@@ -188,10 +187,13 @@ export default function VoicePlanner() {
   const updateStore = useCallback((updater: (s: PlannerStore) => PlannerStore) => {
     setStore(prev => {
       const next = updater(prev)
-      saveStore(next)
+      supabase.from('app_data').upsert(
+        { user_id: user!.id, app: 'planner', data: next },
+        { onConflict: 'user_id,app' }
+      )
       return next
     })
-  }, [])
+  }, [user])
 
   // ── Parse ──────────────────────────────────────────────────────────────────
 
@@ -302,6 +304,21 @@ export default function VoicePlanner() {
   }
 
   // ── Home ───────────────────────────────────────────────────────────────────
+
+  if (storeLoading) return (
+    <div className="page">
+      <header className="page-header">
+        <div className="page-header-left">
+          <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
+          <span className="page-header-title">VOICE PLANNER</span>
+        </div>
+        <HeaderRight />
+      </header>
+      <div className="page-body">
+        <div className="card" style={{ textAlign: 'center', color: 'var(--muted)', padding: '2rem' }}>Loading…</div>
+      </div>
+    </div>
+  )
 
   if (view === 'home') {
     return (
