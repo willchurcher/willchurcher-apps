@@ -120,20 +120,18 @@ function getCards(
   return all.filter(c => (importanceMap[c.id] ?? 0) === importanceFilter)
 }
 
-function computeQueue(cards: Flashcard[], progress: ProgressMap, importanceMap: ImportanceMap): Flashcard[] {
+function computeQueue(cards: Flashcard[], progress: ProgressMap): Flashcard[] {
   const now = Date.now()
   const due: Flashcard[]    = []
   const unseen: Flashcard[] = []
 
   for (const c of cards) {
-    const s   = progress[c.id]
-    const imp = (importanceMap[c.id] ?? 0) as Importance
+    const s = progress[c.id]
     if (!s) {
       unseen.push(c)
     } else {
-      // Adjust effective due time by importance: high importance = see sooner
-      const effective = s.nextReview * (IMPORTANCE_FACTOR[imp] ?? 1)
-      if (effective <= now) due.push(c)
+      // nextReview already has importance baked in (set during rate())
+      if (s.nextReview <= now) due.push(c)
     }
   }
 
@@ -145,15 +143,13 @@ function computeQueue(cards: Flashcard[], progress: ProgressMap, importanceMap: 
   return [...due, ...unseen]
 }
 
-function nextDueTs(progress: ProgressMap, cards: Flashcard[], importanceMap: ImportanceMap): number | null {
+function nextDueTs(progress: ProgressMap, cards: Flashcard[]): number | null {
   const now = Date.now()
   let earliest: number | null = null
   for (const c of cards) {
-    const s   = progress[c.id]
-    const imp = (importanceMap[c.id] ?? 0) as Importance
+    const s = progress[c.id]
     if (!s) continue
-    const effective = s.nextReview * (IMPORTANCE_FACTOR[imp] ?? 1)
-    if (effective <= now) continue
+    if (s.nextReview <= now) continue
     if (earliest === null || s.nextReview < earliest) earliest = s.nextReview
   }
   return earliest
@@ -514,15 +510,22 @@ function AddCardPanel({ chapter, onSave, onClose }: {
 }
 
 // ── Bucket bar ─────────────────────────────────────────────────
-function BucketBar({ bucket }: { bucket: number }) {
-  const pct   = Math.min(bucket / MAX_BUCKET, 1)
+function BucketBar({ bucket, nextReview }: { bucket: number; nextReview?: number }) {
+  const pct    = Math.min(bucket / MAX_BUCKET, 1)
   const nextMs = bucketIntervalMs(bucket)
+  const now    = Date.now()
+  const dueLabel = nextReview == null
+    ? 'new'
+    : nextReview <= now
+      ? `overdue by ${formatInterval(now - nextReview)}`
+      : `due in ${formatInterval(nextReview - now)}`
   return (
     <div className="fq-bucket-row" title={`Bucket ${bucket} · interval ${formatInterval(nextMs)}`}>
       <div className="fq-bucket-bar">
         <div className="fq-bucket-fill" style={{ width: `${pct * 100}%` }} />
       </div>
       <span className="fq-bucket-label">{bucket}/{MAX_BUCKET} · {formatInterval(nextMs)}</span>
+      <span className="fq-bucket-due">{dueLabel}</span>
     </div>
   )
 }
@@ -547,7 +550,7 @@ export default function CppFlashcards() {
     () => getCards(chapter, overrides, customs, importanceFilter, importanceMap, graveyard),
     [chapter, overrides, customs, importanceFilter, importanceMap, graveyard]
   )
-  const queue  = useMemo(() => computeQueue(cards, progress, importanceMap), [cards, progress, importanceMap])
+  const queue  = useMemo(() => computeQueue(cards, progress), [cards, progress])
   const card   = queue[0]
   const bucket = card ? (progress[card.id]?.bucket ?? 0) : 0
   const cardImportance = card ? ((importanceMap[card.id] ?? 0) as Importance) : 0
@@ -645,7 +648,7 @@ export default function CppFlashcards() {
 
   // ── Empty queue ──────────────────────────────────────────────
   if (queue.length === 0) {
-    const next   = nextDueTs(progress, cards, importanceMap)
+    const next   = nextDueTs(progress, cards)
     const total  = cards.length
     const seen   = cards.filter(c => progress[c.id]).length
     const onTime = cards.filter(c => {
@@ -784,7 +787,7 @@ export default function CppFlashcards() {
               )}
             </div>
             <CardText text={card.q} className="fq-q-text" />
-            <BucketBar bucket={bucket} />
+            <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />
           </div>
 
           {/* Answer — click to reveal */}
