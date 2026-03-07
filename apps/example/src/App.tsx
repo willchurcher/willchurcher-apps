@@ -11,6 +11,8 @@ import Research from './Research'
 import Specs from './Specs'
 import OptionsLab from './OptionsLab'
 import VoicePlanner from './VoicePlanner'
+import CppFlashcards from './CppFlashcards'
+import ClaudeUsage from './ClaudeUsage'
 import { HeaderRight } from './HeaderRight'
 
 // ── App registry ────────────────────────────────────────────
@@ -23,6 +25,8 @@ const APP_LIST = [
   { name: 'Options',  path: '/options',  icon: '📈', gradient: 'linear-gradient(145deg, #2a5a8a, #1a2a5a)' },
   { name: 'Specs',    path: '/specs',    icon: '📖', gradient: 'linear-gradient(145deg, #6a4a2a, #3a2010)' },
   { name: 'Planner',  path: '/planner',  icon: '🎙', gradient: 'linear-gradient(145deg, #4a2a6a, #1a0a3a)' },
+  { name: 'C++ Quiz',     path: '/cpp-quiz',     icon: '⚡', gradient: 'linear-gradient(145deg, #1a4a2a, #0a2a10)' },
+  { name: 'Claude Usage', path: '/claude-usage', icon: '◈', gradient: 'linear-gradient(145deg, #3a2a5a, #1a0a3a)' },
 ]
 
 // ── Shared page shell ────────────────────────────────────────
@@ -335,6 +339,8 @@ function AppContent() {
         <Route path="/options"   element={<OptionsLab />} />
         <Route path="/specs"     element={<Specs />} />
         <Route path="/planner"   element={<VoicePlanner />} />
+        <Route path="/cpp-quiz"     element={<CppFlashcards />} />
+        <Route path="/claude-usage" element={<ClaudeUsage />} />
       </Routes>
     </BrowserRouter>
   )
