@@ -554,37 +554,24 @@ export default function CppFlashcards() {
   const cloudSynced = useRef(false)
 
   // ── Cloud sync ────────────────────────────────────────────────
-  // On login: load from Supabase (wins over localStorage).
-  // If Supabase has no data yet, migrate current localStorage data up (one-time).
+  // On login: load from Supabase and apply (Supabase is source of truth)
   useEffect(() => {
     if (!user || cloudSynced.current) return
     cloudSynced.current = true
     loadFromCloud(user.id).then(remote => {
-      if (remote) {
-        // Supabase has data — apply it
-        setOverrides(remote.overrides)
-        saveOverrides(remote.overrides)
-        setCustoms(remote.custom)
-        saveCustomCards(remote.custom)
-        setProgress(remote.progress)
-        saveProgress(remote.progress)
-        const impMap = remote.importance as ImportanceMap
-        setImportanceMap(impMap)
-        saveImportance(impMap)
-        const gy = new Set(remote.graveyard)
-        setGraveyard(gy)
-        saveGraveyard(gy)
-      } else {
-        // No cloud data — migrate localStorage up
-        const local: CppCloudData = {
-          overrides:  loadOverrides(),
-          custom:     loadCustomCards(),
-          progress:   loadProgress(),
-          importance: loadImportance(),
-          graveyard:  [...loadGraveyard()],
-        }
-        saveToCloud(user.id, local)
-      }
+      if (!remote) return
+      setOverrides(remote.overrides)
+      saveOverrides(remote.overrides)
+      setCustoms(remote.custom)
+      saveCustomCards(remote.custom)
+      setProgress(remote.progress)
+      saveProgress(remote.progress)
+      const impMap = remote.importance as ImportanceMap
+      setImportanceMap(impMap)
+      saveImportance(impMap)
+      const gy = new Set(remote.graveyard)
+      setGraveyard(gy)
+      saveGraveyard(gy)
     })
   }, [user])
 
