@@ -74,11 +74,13 @@ A summary screen showing:
 
 - **Frontend:** React + TypeScript (Vite), existing monorepo app at `apps/example/`
 - **Route:** `/planner`
-- **Storage:** `localStorage` — all data lives in the browser, no user accounts
+- **Storage:** Supabase (`app_data` table, key `planner`) — data is synced across devices and persists per user account. See `specs/auth.md`.
 - **LLM:** Anthropic Claude API via a Vercel serverless function (to avoid CORS issues)
 - **API key:** stored as a Vercel environment variable (`ANTHROPIC_API_KEY`), never exposed to the client
 
-### Data Model (localStorage)
+### Data Model
+
+Stored as a single JSON blob in `app_data.data` under key `planner` (see `specs/auth.md`).
 
 ```ts
 interface Transcript {
@@ -116,8 +118,6 @@ interface PlannerStore {
   tasks: Task[]
 }
 ```
-
-localStorage key: `planner-store`
 
 ### Vercel Serverless Function
 

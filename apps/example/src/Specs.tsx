@@ -6,11 +6,12 @@ import { HeaderRight } from './HeaderRight'
 // ── Spec registry ──────────────────────────────────────────────────────────────
 
 const SPECS = [
-  { key: 'global-styles',  label: 'Global Styles',  icon: '🎨' },
-  { key: 'pdf-viewer',     label: 'PDF Viewer',      icon: '📄' },
-  { key: 'research',       label: 'Research',        icon: '🔬' },
-  { key: 'specs',          label: 'Specs',           icon: '📖' },
-  { key: 'voice-planner',  label: 'Voice Planner',   icon: '🎙' },
+  { key: 'auth',           label: 'Auth & Backend',  icon: '🔐' },
+  { key: 'global-styles',  label: 'Global Styles',   icon: '🎨' },
+  { key: 'pdf-viewer',     label: 'PDF Viewer',       icon: '📄' },
+  { key: 'research',       label: 'Research',         icon: '🔬' },
+  { key: 'specs',          label: 'Specs',            icon: '📖' },
+  { key: 'voice-planner',  label: 'Voice Planner',    icon: '🎙' },
 ]
 
 // ── Settings ───────────────────────────────────────────────────────────────────
