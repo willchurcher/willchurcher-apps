@@ -264,7 +264,10 @@ function extractSection(md: string, heading: string): string {
 
 async function fetchNotesContext(chapter: string, noteSection?: string): Promise<string> {
   try {
-    const md = await fetch(`/notes/cpp-chapter-${chapter}.md`).then(r => r.text())
+    // chapters are zero-padded ("01") — strip for filename ("cpp-chapter-1.md")
+    const n = parseInt(chapter, 10)
+    const chStr = isNaN(n) ? chapter.toLowerCase() : String(n)
+    const md = await fetch(`/notes/cpp-chapter-${chStr}.md`).then(r => r.text())
     return noteSection ? extractSection(md, noteSection) : md
   } catch {
     return ''
@@ -569,18 +572,20 @@ export default function CppFlashcardsV2() {
   const [currentCardId, setCurrentCardId] = useState<number | null>(null)
   const cloudSynced = useRef(false)
 
-  // ── Load cards from cpp_flashcards table ──────────────────────
+  // ── Load cards from cpp_flashcards_v3 table ───────────────────
   useEffect(() => {
     supabase
-      .from('cpp_flashcards_v2')
-      .select('id, chapter, lesson, lesson_title, topic, note_section, q, a, importance')
-      .order('id')
+      .from('cpp_flashcards_v3')
+      .select('id, chapter, lesson_number, lesson_title, topic, note_section, q, a, importance')
+      .order('chapter', { ascending: true })
+      .order('lesson_number', { ascending: true })
+      .order('id', { ascending: true })
       .then(({ data }) => {
         if (data) {
           setAllCards(data.map(row => ({
             id: row.id,
             chapter: row.chapter,
-            lesson: row.lesson ?? '',
+            lesson: row.lesson_number ?? '',
             lessonTitle: row.lesson_title ?? '',
             topic: row.topic,
             noteSection: row.note_section,
@@ -593,9 +598,14 @@ export default function CppFlashcardsV2() {
       })
   }, [])
 
-  const CHAPTERS = [...new Set(allCards.map(c => c.chapter))].sort()
+  const CHAPTERS = [...new Set(allCards.map(c => c.chapter))].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true })
+  )
   const CHAPTER_NAMES: Record<string, string> = Object.fromEntries(
-    CHAPTERS.map(ch => [ch, `Ch. ${ch}`])
+    CHAPTERS.map(ch => {
+      const n = parseInt(ch, 10)
+      return [ch, `Ch. ${isNaN(n) ? ch : n}`]
+    })
   )
 
   // ── Cloud sync ────────────────────────────────────────────────
