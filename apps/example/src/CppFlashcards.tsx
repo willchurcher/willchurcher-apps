@@ -1,28 +1,29 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { marked } from 'marked'
 import { HeaderRight } from './HeaderRight'
 import { FLASHCARDS, CHAPTERS, CHAPTER_NAMES, type Flashcard } from './cpp-flashcards-data'
 
 // ── SRS constants ──────────────────────────────────────────────
-const A_MS = 60 * 1000   // base interval = 60 seconds
-const MAX_BUCKET = 14    // bucket 14 ≈ 11 days
-const STORAGE_KEY = 'cpp-fc-progress'
+const A_MS = 60 * 1000
+const MAX_BUCKET = 14
+const STORAGE_KEY   = 'cpp-fc-progress'
+const OVERRIDES_KEY = 'cpp-fc-overrides'
+const CUSTOM_KEY    = 'cpp-fc-custom'
 
-// interval = A * 2^bucket  (seconds, then converted to ms)
 function bucketIntervalMs(bucket: number): number {
   return A_MS * Math.pow(2, bucket)
 }
 
 function formatInterval(ms: number): string {
   const s = ms / 1000
-  if (s < 60)   return `${Math.round(s)}s`
+  if (s < 60)  return `${Math.round(s)}s`
   const m = s / 60
-  if (m < 60)   return `${Math.round(m)}m`
+  if (m < 60)  return `${Math.round(m)}m`
   const h = m / 60
-  if (h < 24)   return `${Math.round(h)}h`
+  if (h < 24)  return `${Math.round(h)}h`
   const d = h / 24
-  if (d < 30)   return `${Math.round(d)}d`
+  if (d < 30)  return `${Math.round(d)}d`
   return `${Math.round(d / 7)}w`
 }
 
@@ -33,7 +34,6 @@ function formatRelative(ts: number): string {
 // ── Progress store ─────────────────────────────────────────────
 interface CardState { bucket: number; nextReview: number }
 type ProgressMap = Record<number, CardState>
-type Rating = 'black' | 'red' | 'yellow' | 'green'
 
 function loadProgress(): ProgressMap {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') }
@@ -43,36 +43,63 @@ function saveProgress(p: ProgressMap) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(p))
 }
 
+// ── Override / custom card storage ─────────────────────────────
+type OverridesMap = Record<number, { q: string; a: string }>
+
+function loadOverrides(): OverridesMap {
+  try { return JSON.parse(localStorage.getItem(OVERRIDES_KEY) ?? '{}') }
+  catch { return {} }
+}
+function saveOverrides(o: OverridesMap) {
+  localStorage.setItem(OVERRIDES_KEY, JSON.stringify(o))
+}
+
+function loadCustomCards(): Flashcard[] {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? '[]') }
+  catch { return [] }
+}
+function saveCustomCards(cards: Flashcard[]) {
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(cards))
+}
+
 // ── Queue logic ────────────────────────────────────────────────
+function applyOverrides(cards: Flashcard[], overrides: OverridesMap): Flashcard[] {
+  return cards.map(c => {
+    const o = overrides[c.id]
+    return o ? { ...c, q: o.q, a: o.a } : c
+  })
+}
+
+function getCards(chapter: string, overrides: OverridesMap, customs: Flashcard[]): Flashcard[] {
+  const base = chapter === 'all' ? FLASHCARDS : FLASHCARDS.filter(c => c.chapter === chapter)
+  const withOverrides = applyOverrides(base, overrides)
+  const filtered = chapter === 'all' ? customs : customs.filter(c => c.chapter === chapter)
+  return [...withOverrides, ...filtered]
+}
+
 function computeQueue(cards: Flashcard[], progress: ProgressMap): Flashcard[] {
   const now = Date.now()
-  const due: Flashcard[]   = []
+  const due: Flashcard[]    = []
   const unseen: Flashcard[] = []
 
   for (const c of cards) {
     const s = progress[c.id]
-    if (!s)                        unseen.push(c)
-    else if (s.nextReview <= now)  due.push(c)
+    if (!s)                       unseen.push(c)
+    else if (s.nextReview <= now) due.push(c)
   }
 
   due.sort((a, b) => (progress[a.id]?.nextReview ?? 0) - (progress[b.id]?.nextReview ?? 0))
-
   for (let i = unseen.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[unseen[i], unseen[j]] = [unseen[j], unseen[i]]
   }
-
   return [...due, ...unseen]
 }
 
-function getCards(chapter: string) {
-  return chapter === 'all' ? FLASHCARDS : FLASHCARDS.filter(c => c.chapter === chapter)
-}
-
-function nextDueTs(progress: ProgressMap, chapter: string): number | null {
+function nextDueTs(progress: ProgressMap, cards: Flashcard[]): number | null {
   const now = Date.now()
   let earliest: number | null = null
-  for (const c of getCards(chapter)) {
+  for (const c of cards) {
     const s = progress[c.id]
     if (!s || s.nextReview <= now) continue
     if (earliest === null || s.nextReview < earliest) earliest = s.nextReview
@@ -80,8 +107,67 @@ function nextDueTs(progress: ProgressMap, chapter: string): number | null {
   return earliest
 }
 
+// ── AI helpers ─────────────────────────────────────────────────
+async function callClaude(prompt: string): Promise<string> {
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  })
+  if (!res.ok) throw new Error('API error')
+  const data = await res.json()
+  return data.text
+}
+
+function parseJsonFromText(text: string): Record<string, string> {
+  const match = text.match(/\{[\s\S]*\}/)
+  if (!match) throw new Error('No JSON found')
+  return JSON.parse(match[0])
+}
+
+function buildEnhancePrompt(q: string, a: string, note: string, context: string): string {
+  return `You are improving a C++ study flashcard.
+
+CURRENT CARD:
+Q: ${q}
+A: ${a}
+
+INSTRUCTION: ${note || 'Improve clarity, accuracy, and conciseness.'}
+
+NOTES CONTEXT:
+${context}
+
+Return ONLY a JSON object — no markdown fences, no explanation:
+{"question": "...", "answer": "..."}
+
+Answer formatting rules:
+- For lists, format each bullet as: • **Keyword**: explanation.
+- Keep answers concise and factual.
+- Use backtick formatting for code, flags, and types.
+- Use \\n for line breaks within the answer string.`
+}
+
+function buildGeneratePrompt(q: string, note: string, context: string): string {
+  return `You are creating an answer for a C++ study flashcard.
+
+QUESTION: ${q}
+
+INSTRUCTION: ${note || 'Generate a clear, accurate, concise answer.'}
+
+NOTES CONTEXT:
+${context}
+
+Return ONLY a JSON object — no markdown fences, no explanation:
+{"answer": "..."}
+
+Answer formatting rules:
+- For lists, format each bullet as: • **Keyword**: explanation.
+- Keep the answer concise and factual.
+- Use backtick formatting for code, flags, and types.
+- Use \\n for line breaks within the answer string.`
+}
+
 // ── Inline markdown renderer ───────────────────────────────────
-// Renders **bold** and `code` inline; splits \n into line breaks.
 function CardText({ text, className }: { text: string; className: string }) {
   const lines = text.split('\n')
   return (
@@ -119,30 +205,154 @@ function extractSection(md: string, heading: string): string {
     if (m && m[1].length <= headingLevel) break
     result.push(lines[i])
   }
-
   return result.join('\n')
+}
+
+async function fetchNotesContext(chapter: string, noteSection?: string): Promise<string> {
+  try {
+    const md = await fetch(`/notes/cpp-chapter-${chapter}.md`).then(r => r.text())
+    return noteSection ? extractSection(md, noteSection) : md
+  } catch {
+    return ''
+  }
+}
+
+// ── Edit sheet ─────────────────────────────────────────────────
+interface EditSheetProps {
+  mode: 'edit' | 'new'
+  card?: Flashcard
+  chapter: string
+  onSave: (q: string, a: string) => void
+  onClose: () => void
+}
+
+function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
+  const [q, setQ]         = useState(card?.q ?? '')
+  const [a, setA]         = useState(card?.a ?? '')
+  const [aiNote, setAiNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]   = useState('')
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
+
+  function handleClose() {
+    setVisible(false)
+    setTimeout(onClose, 280)
+  }
+
+  function handleSave() {
+    if (!q.trim() || !a.trim()) return
+    onSave(q.trim(), a.trim())
+    handleClose()
+  }
+
+  async function handleAI() {
+    if (!q.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const context = await fetchNotesContext(chapter, card?.noteSection)
+      const prompt  = mode === 'edit'
+        ? buildEnhancePrompt(q, a, aiNote, context)
+        : buildGeneratePrompt(q, aiNote, context)
+      const text   = await callClaude(prompt)
+      const json   = parseJsonFromText(text)
+      if (mode === 'edit' && json.question) setQ(json.question)
+      if (json.answer) setA(json.answer)
+    } catch {
+      setError('AI request failed — check that ANTHROPIC_API_KEY is set in Vercel.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      className={`fq-sheet-overlay${visible ? ' fq-sheet-overlay-visible' : ''}`}
+      onClick={handleClose}
+    >
+      <div
+        className={`fq-sheet fq-edit-sheet${visible ? ' fq-sheet-visible' : ''}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="fq-sheet-handle" />
+        <div className="fq-sheet-header">
+          <span className="fq-sheet-section">{mode === 'edit' ? 'Edit card' : 'New card'}</span>
+          <button className="fq-sheet-close" onClick={handleClose}>✕</button>
+        </div>
+
+        <div className="fq-sheet-body fq-edit-body">
+          <label className="fq-edit-label">Question</label>
+          <textarea
+            className="fq-edit-textarea"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            rows={3}
+            placeholder="What does…"
+          />
+
+          <label className="fq-edit-label">Answer</label>
+          <textarea
+            className="fq-edit-textarea fq-edit-answer"
+            value={a}
+            onChange={e => setA(e.target.value)}
+            rows={7}
+            placeholder="• **Keyword**: explanation."
+          />
+
+          <label className="fq-edit-label">
+            Note to AI
+            <span className="fq-edit-label-hint"> — optional instruction</span>
+          </label>
+          <input
+            className="fq-edit-input"
+            type="text"
+            value={aiNote}
+            onChange={e => setAiNote(e.target.value)}
+            placeholder='e.g. "expand on what portability means here"'
+          />
+
+          {error && <p className="fq-edit-error">{error}</p>}
+
+          <button
+            className="btn btn-primary fq-edit-ai-btn"
+            onClick={handleAI}
+            disabled={loading || !q.trim()}
+          >
+            {loading ? 'Thinking…' : mode === 'edit' ? '✦ Enhance with AI' : '✦ Generate answer'}
+          </button>
+
+          <div className="fq-edit-actions">
+            <button className="btn fq-edit-discard" onClick={handleClose}>
+              Discard
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={!q.trim() || !a.trim()}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Notes bottom sheet ─────────────────────────────────────────
 function NotesSheet({ card, onClose }: { card: Flashcard; onClose: () => void }) {
-  const [html, setHtml] = useState<string>('')
+  const [html, setHtml]       = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [visible, setVisible] = useState(false)
-  const sheetRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    // Trigger slide-up animation after mount
-    requestAnimationFrame(() => setVisible(true))
-  }, [])
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/notes/cpp-chapter-${card.chapter}.md`)
-      .then(r => r.text())
-      .then(md => {
-        const section = extractSection(md, card.noteSection)
-        setHtml(marked(section) as string)
-      })
+    fetchNotesContext(card.chapter, card.noteSection)
+      .then(section => setHtml(marked(section) as string))
       .catch(() => setHtml('<p><em>Could not load notes.</em></p>'))
       .finally(() => setLoading(false))
   }, [card.chapter, card.noteSection])
@@ -158,13 +368,12 @@ function NotesSheet({ card, onClose }: { card: Flashcard; onClose: () => void })
       onClick={handleClose}
     >
       <div
-        ref={sheetRef}
         className={`fq-sheet${visible ? ' fq-sheet-visible' : ''}`}
         onClick={e => e.stopPropagation()}
       >
         <div className="fq-sheet-handle" />
         <div className="fq-sheet-header">
-          <span className="fq-sheet-section">{card.noteSection}</span>
+          <span className="fq-sheet-section">{card.noteSection || 'Notes'}</span>
           <button className="fq-sheet-close" onClick={handleClose}>✕</button>
         </div>
         <div className="fq-sheet-body">
@@ -178,9 +387,9 @@ function NotesSheet({ card, onClose }: { card: Flashcard; onClose: () => void })
   )
 }
 
-// ── Bucket bar ────────────────────────────────────────────────
+// ── Bucket bar ─────────────────────────────────────────────────
 function BucketBar({ bucket }: { bucket: number }) {
-  const pct = Math.min(bucket / MAX_BUCKET, 1)
+  const pct   = Math.min(bucket / MAX_BUCKET, 1)
   const nextMs = bucketIntervalMs(bucket)
   return (
     <div className="fq-bucket-row" title={`Bucket ${bucket} · interval ${formatInterval(nextMs)}`}>
@@ -195,16 +404,19 @@ function BucketBar({ bucket }: { bucket: number }) {
 // ── Main component ─────────────────────────────────────────────
 export default function CppFlashcards() {
   const navigate = useNavigate()
-  const [chapter, setChapter] = useState('all')
-  const [progress, setProgress] = useState<ProgressMap>(loadProgress)
-  const [revealed, setRevealed] = useState(false)
-  const [graduated, setGraduated] = useState(0)
-  const [notesOpen, setNotesOpen] = useState(false)
+  const [chapter, setChapter]       = useState('all')
+  const [progress, setProgress]     = useState<ProgressMap>(loadProgress)
+  const [overrides, setOverrides]   = useState<OverridesMap>(loadOverrides)
+  const [customs, setCustoms]       = useState<Flashcard[]>(loadCustomCards)
+  const [revealed, setRevealed]     = useState(false)
+  const [graduated, setGraduated]   = useState(0)
+  const [notesOpen, setNotesOpen]   = useState(false)
+  const [editOpen, setEditOpen]     = useState(false)
+  const [addOpen, setAddOpen]       = useState(false)
 
-  const cards = useMemo(() => getCards(chapter), [chapter])
-  const queue  = useMemo(() => computeQueue(cards, progress), [cards, progress])
-
-  const card   = queue[0]
+  const cards = useMemo(() => getCards(chapter, overrides, customs), [chapter, overrides, customs])
+  const queue = useMemo(() => computeQueue(cards, progress), [cards, progress])
+  const card  = queue[0]
   const bucket = card ? (progress[card.id]?.bucket ?? 0) : 0
 
   function changeChapter(ch: string) {
@@ -212,17 +424,12 @@ export default function CppFlashcards() {
     setRevealed(false)
     setGraduated(0)
     setNotesOpen(false)
+    setEditOpen(false)
   }
 
-  function rate(rating: Rating) {
+  function rate(delta: number) {
     if (!card) return
-    let newBucket: number
-    switch (rating) {
-      case 'green':  newBucket = Math.min(MAX_BUCKET, bucket + 1); break
-      case 'yellow': newBucket = bucket; break
-      case 'red':    newBucket = Math.max(0, bucket - 1); break
-      case 'black':  newBucket = 0; break
-    }
+    const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
     const newProgress: ProgressMap = {
       ...progress,
       [card.id]: { bucket: newBucket, nextReview: Date.now() + bucketIntervalMs(newBucket) },
@@ -232,7 +439,38 @@ export default function CppFlashcards() {
     setGraduated(g => g + 1)
     setRevealed(false)
     setNotesOpen(false)
+    setEditOpen(false)
   }
+
+  // Keyboard shortcuts: Space = flip, 1–5 = rate(−2..+2)
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
+      if (e.key === ' ') {
+        e.preventDefault()
+        if (!revealed) setRevealed(true)
+        return
+      }
+      if (!revealed || !card) return
+      const deltaMap: Record<string, number> = { '1': -2, '2': -1, '3': 0, '4': 1, '5': 2 }
+      const delta = deltaMap[e.key]
+      if (delta !== undefined) {
+        const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
+        const newProgress: ProgressMap = {
+          ...progress,
+          [card.id]: { bucket: newBucket, nextReview: Date.now() + bucketIntervalMs(newBucket) },
+        }
+        setProgress(newProgress)
+        saveProgress(newProgress)
+        setGraduated(g => g + 1)
+        setRevealed(false)
+        setNotesOpen(false)
+        setEditOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [revealed, card, bucket, progress])
 
   function resetProgress() {
     const cleared: ProgressMap = {}
@@ -242,12 +480,30 @@ export default function CppFlashcards() {
     setGraduated(0)
   }
 
+  function handleSaveEdit(q: string, a: string) {
+    if (!card) return
+    const newOverrides = { ...overrides, [card.id]: { q, a } }
+    setOverrides(newOverrides)
+    saveOverrides(newOverrides)
+  }
+
+  function handleSaveNew(q: string, a: string) {
+    const id = Date.now()
+    const ch  = chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter
+    const newCard: Flashcard = {
+      id, chapter: ch, topic: 'Custom', noteSection: '', q, a,
+    }
+    const newCustoms = [...customs, newCard]
+    setCustoms(newCustoms)
+    saveCustomCards(newCustoms)
+  }
+
   const totalSession = graduated + queue.length
   const progressPct  = totalSession > 0 ? (graduated / totalSession) * 100 : 0
 
   // ── Empty queue ──────────────────────────────────────────────
   if (queue.length === 0) {
-    const next   = nextDueTs(progress, chapter)
+    const next   = nextDueTs(progress, cards)
     const total  = cards.length
     const seen   = cards.filter(c => progress[c.id]).length
     const onTime = cards.filter(c => {
@@ -264,6 +520,7 @@ export default function CppFlashcards() {
           </div>
           <HeaderRight options={close => (<>
             <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>New session</button>
+            <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
             <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
           </>)} />
         </header>
@@ -292,6 +549,14 @@ export default function CppFlashcards() {
             Study again
           </button>
         </div>
+        {addOpen && (
+          <EditSheet
+            mode="new"
+            chapter={chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter}
+            onSave={handleSaveNew}
+            onClose={() => setAddOpen(false)}
+          />
+        )}
       </div>
     )
   }
@@ -306,6 +571,7 @@ export default function CppFlashcards() {
         </div>
         <HeaderRight options={close => (<>
           <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
+          <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
         </>)} />
       </header>
@@ -316,7 +582,7 @@ export default function CppFlashcards() {
           className={`fq-pill${chapter === 'all' ? ' fq-pill-active' : ''}`}
           onClick={() => changeChapter('all')}
         >
-          All ({FLASHCARDS.length})
+          All ({getCards('all', overrides, customs).length})
         </button>
         {CHAPTERS.map(ch => (
           <button
@@ -324,7 +590,7 @@ export default function CppFlashcards() {
             className={`fq-pill${chapter === ch ? ' fq-pill-active' : ''}`}
             onClick={() => changeChapter(ch)}
           >
-            {CHAPTER_NAMES[ch]} ({getCards(ch).length})
+            {CHAPTER_NAMES[ch]} ({getCards(ch, overrides, customs).length})
           </button>
         ))}
       </div>
@@ -364,36 +630,68 @@ export default function CppFlashcards() {
           </div>
         </div>
 
-        {/* Notes toggle */}
+        {/* Post-reveal actions */}
         {revealed && (
-          <button
-            className="fq-notes-toggle"
-            onClick={() => setNotesOpen(true)}
-          >
-            ▼ See notes
-          </button>
+          <div className="fq-card-actions">
+            {card.noteSection && (
+              <button className="fq-action-btn" onClick={() => setNotesOpen(true)}>
+                ▼ See notes
+              </button>
+            )}
+            <button className="fq-action-btn" onClick={() => setEditOpen(true)}>
+              ✎ Edit card
+            </button>
+          </div>
         )}
 
-        {/* Rating buttons */}
+        {/* Bucket status + rating buttons */}
+        {revealed && (
+          <div className="fq-bucket-status">
+            Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket))}
+          </div>
+        )}
         <div className="fq-ratings">
-          <button className="fq-rate-btn fq-rate-black" onClick={() => rate('black')} disabled={!revealed} title="Reset to bucket 0">
-            Reset
-          </button>
-          <button className="fq-rate-btn fq-rate-red" onClick={() => rate('red')} disabled={!revealed} title="Drop one bucket">
-            Hard
-          </button>
-          <button className="fq-rate-btn fq-rate-yellow" onClick={() => rate('yellow')} disabled={!revealed} title="Stay in same bucket">
-            Okay
-          </button>
-          <button className="fq-rate-btn fq-rate-green" onClick={() => rate('green')} disabled={!revealed} title="Move up one bucket">
-            Easy
-          </button>
+          {([-2, -1, 0, 1, 2] as const).map((delta, i) => {
+            const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
+            const label = delta > 0 ? `+${delta}` : delta === 0 ? '=' : `${delta}`
+            const colorClass = ['fq-rate-1','fq-rate-2','fq-rate-3','fq-rate-4','fq-rate-5'][i]
+            return (
+              <button
+                key={delta}
+                className={`fq-rate-btn ${colorClass}`}
+                onClick={() => rate(delta)}
+                disabled={!revealed}
+                title={`Key ${i + 1}`}
+              >
+                <span className="fq-rate-delta">{label}</span>
+                <span className="fq-rate-result">bkt {newBucket}</span>
+                <span className="fq-rate-time">{formatInterval(bucketIntervalMs(newBucket))}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Notes bottom sheet */}
+      {/* Sheets */}
       {notesOpen && card && (
         <NotesSheet card={card} onClose={() => setNotesOpen(false)} />
+      )}
+      {editOpen && card && (
+        <EditSheet
+          mode="edit"
+          card={card}
+          chapter={card.chapter}
+          onSave={handleSaveEdit}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+      {addOpen && (
+        <EditSheet
+          mode="new"
+          chapter={chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter}
+          onSave={handleSaveNew}
+          onClose={() => setAddOpen(false)}
+        />
       )}
     </div>
   )

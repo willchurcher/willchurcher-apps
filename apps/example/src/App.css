@@ -1927,7 +1927,29 @@ a { color: inherit; text-decoration: none; }
   white-space: nowrap;
 }
 
-/* Notes toggle + panel */
+/* Post-reveal action buttons (See notes / Edit card) */
+.fq-card-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.fq-action-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  padding: 0.2rem 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+.fq-action-btn:active { opacity: 0.6; }
+
+/* Notes toggle (kept for compatibility) */
 .fq-notes-toggle {
   background: none;
   border: none;
@@ -2085,59 +2107,175 @@ a { color: inherit; text-decoration: none; }
 .fq-notes-md em { color: var(--muted-hi); font-style: italic; }
 .fq-notes-md hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
 
+/* ── Edit sheet ─────────────────────────────────────────── */
+.fq-edit-sheet {
+  height: 90vh;
+}
+
+.fq-edit-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fq-edit-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+  margin-bottom: -0.15rem;
+}
+
+.fq-edit-label-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.58rem;
+  color: var(--muted);
+}
+
+.fq-edit-textarea,
+.fq-edit-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  padding: 0.65rem 0.8rem;
+  resize: vertical;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+.fq-edit-textarea:focus,
+.fq-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.fq-edit-textarea::placeholder,
+.fq-edit-input::placeholder {
+  color: var(--muted);
+}
+
+.fq-edit-answer { resize: vertical; }
+
+.fq-edit-input { resize: none; }
+
+.fq-edit-error {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #e05a5a;
+  margin: 0;
+}
+
+.fq-edit-ai-btn {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+.fq-edit-ai-btn:disabled {
+  opacity: 0.45;
+}
+
+.fq-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.fq-edit-actions .btn {
+  flex: 1;
+}
+.fq-edit-discard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted-hi);
+}
+
+/* Bucket status bar */
+.fq-bucket-status {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--muted-hi);
+  text-align: center;
+}
+
 /* Rating buttons */
 .fq-ratings {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.3rem;
   width: 100%;
   max-width: 480px;
 }
 
 .fq-rate-btn {
   flex: 1;
-  padding: 0.55rem 0.3rem;
+  padding: 0.45rem 0.2rem;
   border-radius: 8px;
   border: 1px solid;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
   cursor: pointer;
   transition: opacity 0.15s, transform 0.1s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
 .fq-rate-btn:hover  { opacity: 0.85; }
 .fq-rate-btn:active { transform: scale(0.96); }
-
 .fq-rate-btn:disabled {
   opacity: 0.18;
   cursor: default;
   transform: none !important;
 }
 
-.fq-rate-black {
-  background: rgba(40, 40, 50, 0.6);
-  border-color: rgba(120, 120, 140, 0.25);
-  color: #8888a0;
+.fq-rate-delta {
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.fq-rate-result {
+  font-size: 0.56rem;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+  line-height: 1;
+}
+.fq-rate-time {
+  font-size: 0.56rem;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  line-height: 1;
 }
 
-.fq-rate-red {
-  background: rgba(220, 60, 60, 0.12);
-  border-color: rgba(220, 60, 60, 0.3);
-  color: #e05a5a;
+/* -2 dark red, -1 red, 0 yellow, +1 light green, +2 green */
+.fq-rate-1 {
+  background: rgba(160, 30, 30, 0.18);
+  border-color: rgba(180, 40, 40, 0.35);
+  color: #c94a4a;
 }
-
-.fq-rate-yellow {
+.fq-rate-2 {
+  background: rgba(220, 80, 60, 0.12);
+  border-color: rgba(220, 80, 60, 0.3);
+  color: #e06050;
+}
+.fq-rate-3 {
   background: rgba(232, 181, 58, 0.12);
   border-color: rgba(232, 181, 58, 0.3);
   color: #e8b53a;
 }
-
-.fq-rate-green {
-  background: rgba(90, 180, 120, 0.12);
-  border-color: rgba(90, 180, 120, 0.3);
-  color: #5ac878;
+.fq-rate-4 {
+  background: rgba(90, 190, 130, 0.1);
+  border-color: rgba(90, 190, 130, 0.28);
+  color: #5abf88;
+}
+.fq-rate-5 {
+  background: rgba(60, 170, 100, 0.14);
+  border-color: rgba(60, 170, 100, 0.32);
+  color: #4ac878;
 }
 
 /* Completion screen */
