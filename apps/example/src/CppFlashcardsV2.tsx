@@ -4,7 +4,7 @@ import { marked } from 'marked'
 import { HeaderRight } from './HeaderRight'
 import type { Flashcard } from './cpp-flashcards-data'
 
-type FlashcardV2 = Flashcard & { baseImportance: number }
+type FlashcardV2 = Flashcard & { baseImportance: number; lesson: string; lessonTitle: string }
 import { callClaude } from './claude-utils'
 import { useAuth } from './AuthContext'
 import { supabase } from './supabase'
@@ -117,11 +117,13 @@ function getCards(
   importanceMap: ImportanceMap,
   graveyard: Set<number>,
   baseCards: Flashcard[] = [],
+  lessonFilter = 'all',
 ): Flashcard[] {
   const base = chapter === 'all' ? baseCards : baseCards.filter(c => c.chapter === chapter)
   const withOverrides = applyOverrides(base, overrides)
   const filtered = chapter === 'all' ? customs : customs.filter(c => c.chapter === chapter)
-  const all = [...withOverrides, ...filtered].filter(c => !graveyard.has(c.id))
+  let all = [...withOverrides, ...filtered].filter(c => !graveyard.has(c.id))
+  if (lessonFilter !== 'all') all = all.filter(c => (c as FlashcardV2).lesson === lessonFilter)
   if (importanceFilter === 'all') return all
   return all.filter(c => effImp(c, importanceMap) === importanceFilter)
 }
@@ -555,6 +557,7 @@ export default function CppFlashcardsV2() {
   const [customs, setCustoms]             = useState<Flashcard[]>(loadCustomCards)
   const [importanceMap, setImportanceMap] = useState<ImportanceMap>(loadImportance)
   const [importanceFilter, setImpFilter]  = useState<Importance | 'all'>('all')
+  const [lessonFilter, setLessonFilter]   = useState<string>('all')
   const [graveyard, setGraveyard]         = useState<Set<number>>(loadGraveyard)
   const [revealed, setRevealed]           = useState(false)
   const [graduated, setGraduated]         = useState(0)
@@ -569,14 +572,16 @@ export default function CppFlashcardsV2() {
   // ── Load cards from cpp_flashcards table ──────────────────────
   useEffect(() => {
     supabase
-      .from('cpp_flashcards')
-      .select('id, chapter, topic, note_section, q, a, importance')
+      .from('cpp_flashcards_v2')
+      .select('id, chapter, lesson, lesson_title, topic, note_section, q, a, importance')
       .order('id')
       .then(({ data }) => {
         if (data) {
           setAllCards(data.map(row => ({
             id: row.id,
             chapter: row.chapter,
+            lesson: row.lesson ?? '',
+            lessonTitle: row.lesson_title ?? '',
             topic: row.topic,
             noteSection: row.note_section,
             q: row.q,
@@ -628,8 +633,8 @@ export default function CppFlashcardsV2() {
 
   // Cards for queue ordering — no overrides, so edits don't reshuffle the queue
   const cards  = useMemo(
-    () => getCards(chapter, {}, customs, importanceFilter, importanceMap, graveyard, allCards),
-    [chapter, customs, importanceFilter, importanceMap, graveyard, allCards]
+    () => getCards(chapter, {}, customs, importanceFilter, importanceMap, graveyard, allCards, lessonFilter),
+    [chapter, customs, importanceFilter, importanceMap, graveyard, allCards, lessonFilter]
   )
   const queue  = useMemo(() => computeQueue(cards, progress), [cards, progress])
 
@@ -650,6 +655,7 @@ export default function CppFlashcardsV2() {
 
   function changeChapter(ch: string) {
     setChapter(ch)
+    setLessonFilter('all')
     setRevealed(false)
     setGraduated(0)
     setNotesOpen(false)
@@ -766,13 +772,23 @@ export default function CppFlashcardsV2() {
   const progressPct  = totalSession > 0 ? (graduated / totalSession) * 100 : 0
 
   // ── Filter counts ─────────────────────────────────────────────
-  const allInChapter = getCards(chapter, overrides, customs, 'all', importanceMap, graveyard, allCards)
+  const allInChapter = getCards(chapter, overrides, customs, 'all', importanceMap, graveyard, allCards, lessonFilter)
   const impCounts = Object.fromEntries(
     ([-2, -1, 0, 1, 2] as Importance[]).map(v => [
       v, allInChapter.filter(c => effImp(c, importanceMap) === v).length
     ])
   ) as Record<number, number>
-  const chapterAllCount = getCards('all', overrides, customs, importanceFilter, importanceMap, graveyard, allCards).length
+  const chapterAllCount = getCards('all', overrides, customs, importanceFilter, importanceMap, graveyard, allCards, lessonFilter).length
+
+  // Lessons available for the current chapter selection (with known lesson values)
+  const lessonOptions = useMemo(() => {
+    const base = chapter === 'all' ? allCards : allCards.filter(c => c.chapter === chapter)
+    const seen = new Map<string, string>() // lesson → lessonTitle
+    for (const c of base) {
+      if (c.lesson && !seen.has(c.lesson)) seen.set(c.lesson, c.lessonTitle)
+    }
+    return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+  }, [chapter, allCards])
 
   // ── Done-screen stats ─────────────────────────────────────────
   const doneNext   = nextDueTs(progress, cards)
@@ -853,6 +869,24 @@ export default function CppFlashcardsV2() {
             <option key={v} value={String(v)}>{IMPORTANCE_NAMES[v]} ({impCounts[v]})</option>
           ))}
         </select>
+        {lessonOptions.length > 0 && (
+          <select
+            className="fq-filter-select"
+            value={lessonFilter}
+            onChange={e => {
+              setLessonFilter(e.target.value)
+              setRevealed(false)
+              setGraduated(0)
+              setCurrentCardId(null)
+            }}
+          >
+            <option value="all">All lessons</option>
+            {lessonOptions.map(([lesson, title]) => {
+              const count = getCards(chapter, overrides, customs, importanceFilter, importanceMap, graveyard, allCards, lesson).length
+              return <option key={lesson} value={lesson}>{lesson} — {title} ({count})</option>
+            })}
+          </select>
+        )}
       </div>
 
       {/* Browse mode */}
