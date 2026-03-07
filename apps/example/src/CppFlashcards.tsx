@@ -11,7 +11,8 @@ const MAX_BUCKET    = 14
 const STORAGE_KEY   = 'cpp-fc-progress'
 const OVERRIDES_KEY = 'cpp-fc-overrides'
 const CUSTOM_KEY    = 'cpp-fc-custom'
-const IMPORTANCE_KEY = 'cpp-fc-importance'
+const IMPORTANCE_KEY  = 'cpp-fc-importance'
+const GRAVEYARD_KEY   = 'cpp-fc-graveyard'
 
 // importance: -2=very low, -1=low, 0=medium, 1=high, 2=very high
 export type Importance = -2 | -1 | 0 | 1 | 2
@@ -87,6 +88,14 @@ function saveImportance(m: ImportanceMap) {
   localStorage.setItem(IMPORTANCE_KEY, JSON.stringify(m))
 }
 
+function loadGraveyard(): Set<number> {
+  try { return new Set(JSON.parse(localStorage.getItem(GRAVEYARD_KEY) ?? '[]')) }
+  catch { return new Set() }
+}
+function saveGraveyard(g: Set<number>) {
+  localStorage.setItem(GRAVEYARD_KEY, JSON.stringify([...g]))
+}
+
 // ── Queue logic ────────────────────────────────────────────────
 function applyOverrides(cards: Flashcard[], overrides: OverridesMap): Flashcard[] {
   return cards.map(c => {
@@ -101,11 +110,12 @@ function getCards(
   customs: Flashcard[],
   importanceFilter: Importance | 'all',
   importanceMap: ImportanceMap,
+  graveyard: Set<number>,
 ): Flashcard[] {
   const base = chapter === 'all' ? FLASHCARDS : FLASHCARDS.filter(c => c.chapter === chapter)
   const withOverrides = applyOverrides(base, overrides)
   const filtered = chapter === 'all' ? customs : customs.filter(c => c.chapter === chapter)
-  const all = [...withOverrides, ...filtered]
+  const all = [...withOverrides, ...filtered].filter(c => !graveyard.has(c.id))
   if (importanceFilter === 'all') return all
   return all.filter(c => (importanceMap[c.id] ?? 0) === importanceFilter)
 }
@@ -456,6 +466,7 @@ export default function CppFlashcards() {
   const [customs, setCustoms]             = useState<Flashcard[]>(loadCustomCards)
   const [importanceMap, setImportanceMap] = useState<ImportanceMap>(loadImportance)
   const [importanceFilter, setImpFilter]  = useState<Importance | 'all'>('all')
+  const [graveyard, setGraveyard]         = useState<Set<number>>(loadGraveyard)
   const [revealed, setRevealed]           = useState(false)
   const [graduated, setGraduated]         = useState(0)
   const [notesOpen, setNotesOpen]         = useState(false)
@@ -463,8 +474,8 @@ export default function CppFlashcards() {
   const [addOpen, setAddOpen]             = useState(false)
 
   const cards  = useMemo(
-    () => getCards(chapter, overrides, customs, importanceFilter, importanceMap),
-    [chapter, overrides, customs, importanceFilter, importanceMap]
+    () => getCards(chapter, overrides, customs, importanceFilter, importanceMap, graveyard),
+    [chapter, overrides, customs, importanceFilter, importanceMap, graveyard]
   )
   const queue  = useMemo(() => computeQueue(cards, progress, importanceMap), [cards, progress, importanceMap])
   const card   = queue[0]
@@ -541,6 +552,16 @@ export default function CppFlashcards() {
     const newImpMap = { ...importanceMap, [card.id]: imp }
     setImportanceMap(newImpMap)
     saveImportance(newImpMap)
+  }
+
+  function handleArchive() {
+    if (!card) return
+    const newGraveyard = new Set(graveyard)
+    newGraveyard.add(card.id)
+    setGraveyard(newGraveyard)
+    saveGraveyard(newGraveyard)
+    setRevealed(false)
+    setGraduated(g => g + 1)
   }
 
   function handleSaveNew(q: string, a: string, imp: Importance) {
@@ -630,6 +651,11 @@ export default function CppFlashcards() {
           <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
           <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
+          {graveyard.size > 0 && (
+            <button className="header-toast-item" onClick={() => { close(); setGraveyard(new Set()); saveGraveyard(new Set()) }}>
+              Restore all ({graveyard.size} archived)
+            </button>
+          )}
         </>)} />
       </header>
 
@@ -639,7 +665,7 @@ export default function CppFlashcards() {
           className={`fq-pill${chapter === 'all' ? ' fq-pill-active' : ''}`}
           onClick={() => changeChapter('all')}
         >
-          All ({getCards('all', overrides, customs, 'all', importanceMap).length})
+          All ({getCards('all', overrides, customs, 'all', importanceMap, graveyard).length})
         </button>
         {CHAPTERS.map(ch => (
           <button
@@ -647,7 +673,7 @@ export default function CppFlashcards() {
             className={`fq-pill${chapter === ch ? ' fq-pill-active' : ''}`}
             onClick={() => changeChapter(ch)}
           >
-            {CHAPTER_NAMES[ch]} ({getCards(ch, overrides, customs, 'all', importanceMap).length})
+            {CHAPTER_NAMES[ch]} ({getCards(ch, overrides, customs, 'all', importanceMap, graveyard).length})
           </button>
         ))}
       </div>
@@ -681,14 +707,10 @@ export default function CppFlashcards() {
 
       {/* Card */}
       <div className="fq-body">
-        <div
-          className={`fq-card${revealed ? ' fq-card-revealed' : ''}`}
-          onClick={() => { if (!revealed && !window.getSelection()?.toString()) setRevealed(true) }}
-          role="button"
-          aria-label="Reveal answer"
-        >
-          {/* Question face */}
-          <div className={`fq-face ${revealed ? 'fq-face-hidden' : 'fq-face-visible'}`}>
+        <div className={`fq-card${revealed ? ' fq-card-revealed' : ''}`}>
+
+          {/* Question — always visible */}
+          <div className="fq-card-q">
             <div className="fq-badges">
               <span className="fq-topic-badge">{card.topic}</span>
               {cardImportance !== 0 && (
@@ -698,16 +720,19 @@ export default function CppFlashcards() {
               )}
             </div>
             <CardText text={card.q} className="fq-q-text" />
-            <div className="fq-front-footer">
-              <BucketBar bucket={bucket} />
-              <span className="fq-flip-hint">tap to reveal</span>
-            </div>
+            <BucketBar bucket={bucket} />
           </div>
 
-          {/* Answer face */}
-          <div className={`fq-face ${revealed ? 'fq-face-visible' : 'fq-face-hidden'}`}>
-            <span className="fq-answer-label">Answer</span>
-            <CardText text={card.a} className="fq-a-text" />
+          {/* Answer — click to reveal */}
+          <div
+            className={`fq-card-a${revealed ? ' fq-card-a-revealed' : ''}`}
+            onClick={() => { if (!revealed && !window.getSelection()?.toString()) setRevealed(true) }}
+            role={revealed ? undefined : 'button'}
+          >
+            {revealed
+              ? <CardText text={card.a} className="fq-a-text" />
+              : <span className="fq-reveal-hint">Click here or press Space to see answer</span>
+            }
           </div>
         </div>
 
@@ -715,20 +740,17 @@ export default function CppFlashcards() {
         {revealed && (
           <div className="fq-card-actions">
             {card.noteSection && (
-              <button className="fq-action-btn" onClick={() => setNotesOpen(true)}>
-                ▼ See notes
-              </button>
+              <button className="fq-action-btn" onClick={() => setNotesOpen(true)}>▼ Notes</button>
             )}
-            <button className="fq-action-btn" onClick={() => setEditOpen(true)}>
-              ✎ Edit card
-            </button>
+            <button className="fq-action-btn" onClick={() => setEditOpen(true)}>✎ Edit</button>
+            <button className="fq-action-btn fq-action-archive" onClick={handleArchive}>⊗ Archive</button>
           </div>
         )}
 
         {/* Bucket status + rating buttons */}
         {revealed && (
           <div className="fq-bucket-status">
-            Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket))}
+            Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
           </div>
         )}
         <div className="fq-ratings">
