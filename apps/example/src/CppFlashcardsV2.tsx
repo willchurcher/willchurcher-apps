@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { marked } from 'marked'
 import { HeaderRight } from './HeaderRight'
 import type { Flashcard } from './cpp-flashcards-data'
+
+type FlashcardV2 = Flashcard & { baseImportance: number }
 import { callClaude } from './claude-utils'
 import { useAuth } from './AuthContext'
 import { supabase } from './supabase'
@@ -121,7 +123,13 @@ function getCards(
   const filtered = chapter === 'all' ? customs : customs.filter(c => c.chapter === chapter)
   const all = [...withOverrides, ...filtered].filter(c => !graveyard.has(c.id))
   if (importanceFilter === 'all') return all
-  return all.filter(c => (importanceMap[c.id] ?? 0) === importanceFilter)
+  return all.filter(c => effImp(c, importanceMap) === importanceFilter)
+}
+
+// Effective importance: user override wins, then DB base, then 0
+function effImp(c: Flashcard, map: ImportanceMap): Importance {
+  if (map[c.id] !== undefined) return map[c.id] as Importance
+  return (((c as FlashcardV2).baseImportance ?? 0) as Importance)
 }
 
 function computeQueue(cards: Flashcard[], progress: ProgressMap): Flashcard[] {
@@ -539,7 +547,7 @@ function BucketBar({ bucket, nextReview }: { bucket: number; nextReview?: number
 export default function CppFlashcardsV2() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [allCards, setAllCards]           = useState<Flashcard[]>([])
+  const [allCards, setAllCards]           = useState<FlashcardV2[]>([])
   const [cardsLoading, setCardsLoading]   = useState(true)
   const [chapter, setChapter]             = useState('all')
   const [progress, setProgress]           = useState<ProgressMap>(loadProgress)
@@ -553,6 +561,7 @@ export default function CppFlashcardsV2() {
   const [notesOpen, setNotesOpen]         = useState(false)
   const [editOpen, setEditOpen]           = useState(false)
   const [addOpen, setAddOpen]             = useState(false)
+  const [browseMode, setBrowseMode]       = useState(false)
   // Tracks which card is being studied — prevents queue reshuffles from swapping the card mid-session
   const [currentCardId, setCurrentCardId] = useState<number | null>(null)
   const cloudSynced = useRef(false)
@@ -561,7 +570,7 @@ export default function CppFlashcardsV2() {
   useEffect(() => {
     supabase
       .from('cpp_flashcards')
-      .select('id, chapter, topic, note_section, q, a')
+      .select('id, chapter, topic, note_section, q, a, importance')
       .order('id')
       .then(({ data }) => {
         if (data) {
@@ -572,6 +581,7 @@ export default function CppFlashcardsV2() {
             noteSection: row.note_section,
             q: row.q,
             a: row.a,
+            baseImportance: row.importance ?? 0,
           })))
         }
         setCardsLoading(false)
@@ -636,7 +646,7 @@ export default function CppFlashcardsV2() {
     ? { ...cardRaw, ...overrides[cardRaw.id] }
     : cardRaw
   const bucket = card ? (progress[card.id]?.bucket ?? 0) : 0
-  const cardImportance = card ? ((importanceMap[card.id] ?? 0) as Importance) : 0
+  const cardImportance = card ? effImp(card, importanceMap) : 0
 
   function changeChapter(ch: string) {
     setChapter(ch)
@@ -755,6 +765,24 @@ export default function CppFlashcardsV2() {
   const totalSession = graduated + queue.length
   const progressPct  = totalSession > 0 ? (graduated / totalSession) * 100 : 0
 
+  // ── Filter counts ─────────────────────────────────────────────
+  const allInChapter = getCards(chapter, overrides, customs, 'all', importanceMap, graveyard, allCards)
+  const impCounts = Object.fromEntries(
+    ([-2, -1, 0, 1, 2] as Importance[]).map(v => [
+      v, allInChapter.filter(c => effImp(c, importanceMap) === v).length
+    ])
+  ) as Record<number, number>
+  const chapterAllCount = getCards('all', overrides, customs, importanceFilter, importanceMap, graveyard, allCards).length
+
+  // ── Done-screen stats ─────────────────────────────────────────
+  const doneNext   = nextDueTs(progress, cards)
+  const doneTotal  = cards.length
+  const doneSeen   = cards.filter(c => progress[c.id]).length
+  const doneOnTime = cards.filter(c => {
+    const s = progress[c.id]
+    return s && s.bucket > 0 && s.nextReview > Date.now()
+  }).length
+
   // ── Loading ───────────────────────────────────────────────────
   if (cardsLoading) return (
     <div className="page">
@@ -768,69 +796,9 @@ export default function CppFlashcardsV2() {
     </div>
   )
 
+  // ── Unified render ────────────────────────────────────────────
+  // (replaces separate done-screen and session returns)
   // ── Empty queue ──────────────────────────────────────────────
-  if (queue.length === 0) {
-    const next   = nextDueTs(progress, cards)
-    const total  = cards.length
-    const seen   = cards.filter(c => progress[c.id]).length
-    const onTime = cards.filter(c => {
-      const s = progress[c.id]
-      return s && s.bucket > 0 && s.nextReview > Date.now()
-    }).length
-
-    return (
-      <div className="page">
-        <header className="page-header">
-          <div className="page-header-left">
-            <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
-            <span className="page-header-title">C++ Quiz</span>
-          </div>
-          <HeaderRight options={close => (<>
-            <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>New session</button>
-            <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
-            <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
-            <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
-          </>)} />
-        </header>
-        <div className="fq-done-screen">
-          <div className="fq-done-check">✓</div>
-          <div className="fq-done-title">
-            {graduated > 0 ? 'Session done' : 'All caught up'}
-          </div>
-          <div className="fq-done-stats">
-            <div className="fq-stat">
-              <span className="fq-stat-val">{seen}</span>
-              <span className="fq-stat-label">of {total} seen</span>
-            </div>
-            <div className="fq-stat-divider" />
-            <div className="fq-stat">
-              <span className="fq-stat-val">{onTime}</span>
-              <span className="fq-stat-label">scheduled</span>
-            </div>
-          </div>
-          {next && (
-            <div className="fq-done-next">
-              Next card due in <strong>{formatRelative(next)}</strong>
-            </div>
-          )}
-          <button className="btn btn-primary fq-done-restart" onClick={() => changeChapter(chapter)}>
-            Study again
-          </button>
-        </div>
-        {addOpen && (
-          <EditSheet
-            mode="new"
-            chapter={chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter}
-            onSave={handleSaveNew}
-            onClose={() => setAddOpen(false)}
-          />
-        )}
-      </div>
-    )
-  }
-
-  // ── Session ──────────────────────────────────────────────────
-  if (!card) return null
   return (
     <div className="page">
       <header className="page-header">
@@ -839,7 +807,13 @@ export default function CppFlashcardsV2() {
           <span className="page-header-title">C++ Quiz</span>
         </div>
         <HeaderRight options={close => (<>
-          <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
+          {queue.length > 0 && !browseMode && (
+            <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
+          )}
+          <button className="header-toast-item" onClick={() => { close(); setBrowseMode(b => !b) }}>
+            {browseMode ? 'Exit browse' : 'Browse all cards'}
+          </button>
+          <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
           <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
           {graveyard.size > 0 && (
@@ -850,159 +824,212 @@ export default function CppFlashcardsV2() {
         </>)} />
       </header>
 
-      {/* Chapter filter */}
-      <div className="fq-topics">
-        <button
-          className={`fq-pill${chapter === 'all' ? ' fq-pill-active' : ''}`}
-          onClick={() => changeChapter('all')}
+      {/* Filter row — always visible */}
+      <div className="fq-filter-row">
+        <select
+          className="fq-filter-select"
+          value={chapter}
+          onChange={e => changeChapter(e.target.value)}
         >
-          All ({getCards('all', overrides, customs, 'all', importanceMap, graveyard, allCards).length})
-        </button>
-        {CHAPTERS.map(ch => (
-          <button
-            key={ch}
-            className={`fq-pill${chapter === ch ? ' fq-pill-active' : ''}`}
-            onClick={() => changeChapter(ch)}
-          >
-            {CHAPTER_NAMES[ch]} ({getCards(ch, overrides, customs, 'all', importanceMap, graveyard, allCards).length})
-          </button>
-        ))}
+          <option value="all">All chapters ({chapterAllCount})</option>
+          {CHAPTERS.map(ch => {
+            const count = getCards(ch, overrides, customs, importanceFilter, importanceMap, graveyard, allCards).length
+            return <option key={ch} value={ch}>{CHAPTER_NAMES[ch]} ({count})</option>
+          })}
+        </select>
+        <select
+          className="fq-filter-select"
+          value={String(importanceFilter)}
+          onChange={e => {
+            const v = e.target.value
+            setImpFilter(v === 'all' ? 'all' : Number(v) as Importance)
+            setRevealed(false)
+            setGraduated(0)
+            setCurrentCardId(null)
+          }}
+        >
+          <option value="all">All ({allInChapter.length})</option>
+          {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+            <option key={v} value={String(v)}>{IMPORTANCE_NAMES[v]} ({impCounts[v]})</option>
+          ))}
+        </select>
       </div>
 
-      {/* Importance filter */}
-      <div className="fq-topics fq-importance-filter">
-        <button
-          className={`fq-pill${importanceFilter === 'all' ? ' fq-pill-active' : ''}`}
-          onClick={() => setImpFilter('all')}
-        >All</button>
-        {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
-          <button
-            key={v}
-            className={`fq-pill fq-imp-pill-${v < 0 ? 'n' : ''}${Math.abs(v)}${importanceFilter === v ? ' fq-pill-active' : ''}`}
-            onClick={() => setImpFilter(v)}
-          >
-            {IMPORTANCE_NAMES[v]}
-          </button>
-        ))}
-      </div>
-
-      {/* Progress */}
-      <div className="fq-progress">
-        <div className="fq-progress-bar">
-          <div className="fq-progress-fill" style={{ width: `${progressPct}%` }} />
+      {/* Browse mode */}
+      {browseMode ? (
+        <div className="fq-browse-list">
+          {cards.length === 0
+            ? <p className="fq-browse-empty">No cards match this filter.</p>
+            : cards.map(c => {
+                const dc = overrides[c.id] ? { ...c, ...overrides[c.id] } : c
+                const imp = effImp(c, importanceMap)
+                return (
+                  <div key={c.id} className="fq-browse-card">
+                    <div className="fq-badges">
+                      <span className="fq-topic-badge">{dc.topic}</span>
+                      {imp !== 0 && (
+                        <span className={`fq-imp-badge fq-imp-badge-${imp < 0 ? 'n' : ''}${Math.abs(imp)}`}>
+                          {IMPORTANCE_NAMES[imp]}
+                        </span>
+                      )}
+                    </div>
+                    <CardText text={dc.q} className="fq-browse-q" />
+                    <CardText text={dc.a} className="fq-browse-a" />
+                  </div>
+                )
+              })
+          }
         </div>
-        <div className="fq-progress-text">
-          {graduated} done · {queue.length} left
+
+      /* No cards match filter */
+      ) : cards.length === 0 ? (
+        <div className="fq-done-screen">
+          <div className="fq-done-title" style={{ marginTop: '3rem' }}>No cards match this filter</div>
+          <p style={{ color: 'var(--muted)', fontSize: '0.85rem', textAlign: 'center', padding: '0 2rem' }}>
+            Try a different chapter or importance level above.
+          </p>
         </div>
-      </div>
 
-      {/* Card */}
-      <div className="fq-body">
-        <div className={`fq-card-area${addOpen ? ' fq-card-area-split' : ''}`}>
-        <div className={`fq-card${revealed ? ' fq-card-revealed' : ''}`}>
+      /* Session done / all caught up */
+      ) : queue.length === 0 ? (
+        <div className="fq-done-screen">
+          <div className="fq-done-check">✓</div>
+          <div className="fq-done-title">
+            {graduated > 0 ? 'Session done' : 'All caught up'}
+          </div>
+          <div className="fq-done-stats">
+            <div className="fq-stat">
+              <span className="fq-stat-val">{doneSeen}</span>
+              <span className="fq-stat-label">of {doneTotal} seen</span>
+            </div>
+            <div className="fq-stat-divider" />
+            <div className="fq-stat">
+              <span className="fq-stat-val">{doneOnTime}</span>
+              <span className="fq-stat-label">scheduled</span>
+            </div>
+          </div>
+          {doneNext && (
+            <div className="fq-done-next">
+              Next card due in <strong>{formatRelative(doneNext)}</strong>
+            </div>
+          )}
+          <button className="btn btn-primary fq-done-restart" onClick={() => changeChapter(chapter)}>
+            Study again
+          </button>
+        </div>
 
-          {/* Question — always visible */}
-          <div className="fq-card-q">
-            <div className="fq-badges">
-              <span className="fq-topic-badge">{card.topic}</span>
-              {cardImportance !== 0 && (
-                <span className={`fq-imp-badge fq-imp-badge-${cardImportance < 0 ? 'n' : ''}${Math.abs(cardImportance)}`}>
-                  {IMPORTANCE_NAMES[cardImportance]}
-                </span>
+      /* Active session */
+      ) : card ? (
+        <>
+          {/* Progress */}
+          <div className="fq-progress">
+            <div className="fq-progress-bar">
+              <div className="fq-progress-fill" style={{ width: `${progressPct}%` }} />
+            </div>
+            <div className="fq-progress-text">
+              {graduated} done · {queue.length} left
+            </div>
+          </div>
+
+          {/* Card */}
+          <div className="fq-body">
+            <div className={`fq-card-area${addOpen ? ' fq-card-area-split' : ''}`}>
+              <div className={`fq-card${revealed ? ' fq-card-revealed' : ''}`}>
+                <div className="fq-card-q">
+                  <div className="fq-badges">
+                    <span className="fq-topic-badge">{card.topic}</span>
+                    {cardImportance !== 0 && (
+                      <span className={`fq-imp-badge fq-imp-badge-${cardImportance < 0 ? 'n' : ''}${Math.abs(cardImportance)}`}>
+                        {IMPORTANCE_NAMES[cardImportance]}
+                      </span>
+                    )}
+                  </div>
+                  <CardText text={card.q} className="fq-q-text" />
+                  <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />
+                </div>
+                <div
+                  className={`fq-card-a${revealed ? ' fq-card-a-revealed' : ''}`}
+                  onClick={() => { if (!revealed && !window.getSelection()?.toString()) setRevealed(true) }}
+                  role={revealed ? undefined : 'button'}
+                >
+                  {revealed
+                    ? <CardText text={card.a} className="fq-a-text" />
+                    : <span className="fq-reveal-hint">Click here or press Space to see answer</span>
+                  }
+                </div>
+              </div>
+              {addOpen && (
+                <AddCardPanel
+                  chapter={chapter === 'all' ? (CHAPTERS[0] ?? '1') : chapter}
+                  onSave={handleSaveNew}
+                  onClose={() => setAddOpen(false)}
+                />
               )}
             </div>
-            <CardText text={card.q} className="fq-q-text" />
-            <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />
-          </div>
 
-          {/* Answer — click to reveal */}
-          <div
-            className={`fq-card-a${revealed ? ' fq-card-a-revealed' : ''}`}
-            onClick={() => { if (!revealed && !window.getSelection()?.toString()) setRevealed(true) }}
-            role={revealed ? undefined : 'button'}
-          >
-            {revealed
-              ? <CardText text={card.a} className="fq-a-text" />
-              : <span className="fq-reveal-hint">Click here or press Space to see answer</span>
-            }
-          </div>
-        </div>
-
-        {/* Inline add card panel */}
-        {addOpen && (
-          <AddCardPanel
-            chapter={chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter}
-            onSave={handleSaveNew}
-            onClose={() => setAddOpen(false)}
-          />
-        )}
-        </div>{/* end fq-card-area */}
-
-        {/* Post-reveal actions */}
-        {revealed && (
-          <div className="fq-card-actions">
-            {card.noteSection && (
-              <button className="fq-action-btn" onClick={() => setNotesOpen(true)}>▼ Notes</button>
-            )}
-            <button className="fq-action-btn" onClick={() => setEditOpen(true)}>✎ Edit</button>
-            <button className="fq-action-btn fq-action-archive" onClick={handleArchive}>⊗ Archive</button>
-            <button
-              className={`fq-action-btn${addOpen ? ' fq-action-btn-active' : ''}`}
-              onClick={() => setAddOpen(o => !o)}
-            >＋ Add</button>
-          </div>
-        )}
-
-        {/* Bucket status + rating buttons */}
-        {revealed && (
-          <div className="fq-bucket-status">
-            Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
-          </div>
-        )}
-        <div className="fq-ratings">
-          {([-2, -1, 0, 1, 2] as const).map((delta, i) => {
-            const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
-            const label = delta > 0 ? `+${delta}` : delta === 0 ? '=' : `${delta}`
-            const colorClass = ['fq-rate-1','fq-rate-2','fq-rate-3','fq-rate-4','fq-rate-5'][i]
-            return (
-              <button
-                key={delta}
-                className={`fq-rate-btn ${colorClass}`}
-                onClick={() => rate(delta)}
-                disabled={!revealed}
-                title={`Key ${i + 1}`}
-              >
-                <span className="fq-rate-delta">{label}</span>
-                <span className="fq-rate-result">bkt {newBucket}</span>
-                <span className="fq-rate-time">{formatInterval(bucketIntervalMs(newBucket))}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Importance selector */}
-        {card && (
-          <div className="fq-importance-selector">
-            <span className="fq-importance-label">Importance</span>
-            <div className="fq-importance-row">
-              {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+            {revealed && (
+              <div className="fq-card-actions">
+                {card.noteSection && (
+                  <button className="fq-action-btn" onClick={() => setNotesOpen(true)}>▼ Notes</button>
+                )}
+                <button className="fq-action-btn" onClick={() => setEditOpen(true)}>✎ Edit</button>
+                <button className="fq-action-btn fq-action-archive" onClick={handleArchive}>⊗ Archive</button>
                 <button
-                  key={v}
-                  className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${cardImportance === v ? ' fq-imp-active' : ''}`}
-                  onClick={() => {
-                    const newImpMap = { ...importanceMap, [card.id]: v }
-                    setImportanceMap(newImpMap)
-                    saveImportance(newImpMap)
-                    if (user) saveToCloud(user.id, cloudState({ importance: newImpMap }))
-                  }}
-                >
-                  {IMPORTANCE_NAMES[v]}
-                </button>
-              ))}
+                  className={`fq-action-btn${addOpen ? ' fq-action-btn-active' : ''}`}
+                  onClick={() => setAddOpen(o => !o)}
+                >＋ Add</button>
+              </div>
+            )}
+
+            {revealed && (
+              <div className="fq-bucket-status">
+                Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
+              </div>
+            )}
+
+            <div className="fq-ratings">
+              {([-2, -1, 0, 1, 2] as const).map((delta, i) => {
+                const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
+                const label = delta > 0 ? `+${delta}` : delta === 0 ? '=' : `${delta}`
+                const colorClass = ['fq-rate-1','fq-rate-2','fq-rate-3','fq-rate-4','fq-rate-5'][i]
+                return (
+                  <button
+                    key={delta}
+                    className={`fq-rate-btn ${colorClass}`}
+                    onClick={() => rate(delta)}
+                    disabled={!revealed}
+                    title={`Key ${i + 1}`}
+                  >
+                    <span className="fq-rate-delta">{label}</span>
+                    <span className="fq-rate-result">bkt {newBucket}</span>
+                    <span className="fq-rate-time">{formatInterval(bucketIntervalMs(newBucket))}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="fq-importance-selector">
+              <span className="fq-importance-label">Importance</span>
+              <div className="fq-importance-row">
+                {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+                  <button
+                    key={v}
+                    className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${cardImportance === v ? ' fq-imp-active' : ''}`}
+                    onClick={() => {
+                      const newImpMap = { ...importanceMap, [card.id]: v }
+                      setImportanceMap(newImpMap)
+                      saveImportance(newImpMap)
+                      if (user) saveToCloud(user.id, cloudState({ importance: newImpMap }))
+                    }}
+                  >
+                    {IMPORTANCE_NAMES[v]}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        )}
-      </div>
+        </>
+      ) : null}
 
       {/* Sheets */}
       {notesOpen && card && (
@@ -1015,6 +1042,14 @@ export default function CppFlashcardsV2() {
           chapter={card.chapter}
           onSave={handleSaveEdit}
           onClose={() => setEditOpen(false)}
+        />
+      )}
+      {addOpen && (browseMode || queue.length === 0) && (
+        <EditSheet
+          mode="new"
+          chapter={chapter === 'all' ? (CHAPTERS[0] ?? '1') : chapter}
+          onSave={handleSaveNew}
+          onClose={() => setAddOpen(false)}
         />
       )}
     </div>
