@@ -545,6 +545,8 @@ export default function CppFlashcards() {
   const [notesOpen, setNotesOpen]         = useState(false)
   const [editOpen, setEditOpen]           = useState(false)
   const [addOpen, setAddOpen]             = useState(false)
+  // Tracks which card is being studied — prevents queue reshuffles from swapping the card mid-session
+  const [currentCardId, setCurrentCardId] = useState<number | null>(null)
 
   // Cards for queue ordering — no overrides, so edits don't reshuffle the queue
   const cards  = useMemo(
@@ -552,8 +554,16 @@ export default function CppFlashcards() {
     [chapter, customs, importanceFilter, importanceMap, graveyard]
   )
   const queue  = useMemo(() => computeQueue(cards, progress), [cards, progress])
+
+  // Advance to next card only when currentCardId is null or no longer in the queue
+  const activeId = (currentCardId != null && queue.some(c => c.id === currentCardId))
+    ? currentCardId
+    : queue[0]?.id ?? null
+  // Sync state if it drifted (e.g. first render, or active card was archived)
+  useEffect(() => { setCurrentCardId(activeId) }, [activeId])
+
   // Apply overrides at display time only
-  const cardRaw = queue[0]
+  const cardRaw = queue.find(c => c.id === activeId) ?? null
   const card = cardRaw && overrides[cardRaw.id]
     ? { ...cardRaw, ...overrides[cardRaw.id] }
     : cardRaw
@@ -578,6 +588,7 @@ export default function CppFlashcards() {
     setProgress(newProgress)
     saveProgress(newProgress)
     setGraduated(g => g + 1)
+    setCurrentCardId(null)
     setRevealed(false)
     setNotesOpen(false)
     setEditOpen(false)
@@ -605,6 +616,7 @@ export default function CppFlashcards() {
         setProgress(newProgress)
         saveProgress(newProgress)
         setGraduated(g => g + 1)
+        setCurrentCardId(null)
         setRevealed(false)
         setNotesOpen(false)
         setEditOpen(false)
@@ -635,6 +647,7 @@ export default function CppFlashcards() {
     newGraveyard.add(card.id)
     setGraveyard(newGraveyard)
     saveGraveyard(newGraveyard)
+    setCurrentCardId(null)
     setRevealed(false)
     setGraduated(g => g + 1)
   }
@@ -712,6 +725,7 @@ export default function CppFlashcards() {
   }
 
   // ── Session ──────────────────────────────────────────────────
+  if (!card) return null
   return (
     <div className="page">
       <header className="page-header">
