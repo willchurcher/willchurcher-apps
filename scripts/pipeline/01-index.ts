@@ -19,6 +19,7 @@ async function fetchHome(): Promise<string> {
 
 interface LessonRow {
   chapter: string
+  chapter_title: string
   lesson_number: string
   lesson_title: string
   slug: string
@@ -30,31 +31,32 @@ function parseTOC(html: string): LessonRow[] {
   const rows: LessonRow[] = []
   const seen = new Set<string>()
 
-  $('.lessontable-row').each((_, row) => {
-    const number = $(row).find('.lessontable-row-number').text().trim()
-    // Must look like "2.1", "0.3", "B.1" etc — skip headers/chapter rows
-    if (!/^\d+x?\.\d+$/.test(number) && !/^[A-Z]\.\d+$/.test(number) && !/^\d+\.\d+$/.test(number)) {
-      // allow any X.Y pattern
+  $('.lessontable').each((_, table) => {
+    const $table = $(table)
+    // Chapter title from the header element
+    const chapterTitle = $table.find('.lessontable-header-title').text().trim()
+
+    $table.find('.lessontable-row').each((_, row) => {
+      const number = $(row).find('.lessontable-row-number').text().trim()
       if (!number.includes('.')) return
-    }
 
-    const $a   = $(row).find('.lessontable-row-title a')
-    const href = $a.attr('href') ?? ''
-    const title = $a.text().trim()
-    if (!href || !title) return
+      const $a    = $(row).find('.lessontable-row-title a')
+      const href  = $a.attr('href') ?? ''
+      const title = $a.text().trim()
+      if (!href || !title) return
 
-    const match = href.match(/\/cpp-tutorial\/([^/?#]+)\/?/)
-    if (!match) return
+      const match = href.match(/\/cpp-tutorial\/([^/?#]+)\/?/)
+      if (!match) return
 
-    const slug = match[1]
-    if (seen.has(slug)) return
-    seen.add(slug)
+      const slug = match[1]
+      if (seen.has(slug)) return
+      seen.add(slug)
 
-    const url = href.startsWith('http') ? href : `${LEARNCPP_BASE}${href}`
-    // Chapter is the part before the dot, e.g. "2" from "2.1"
-    const chapter = number.split('.')[0]
+      const url     = href.startsWith('http') ? href : `${LEARNCPP_BASE}${href}`
+      const chapter = number.split('.')[0]
 
-    rows.push({ chapter, lesson_number: number, lesson_title: title, slug, url })
+      rows.push({ chapter, chapter_title: chapterTitle, lesson_number: number, lesson_title: title, slug, url })
+    })
   })
 
   return rows
@@ -76,7 +78,7 @@ for (let i = 0; i < lessons.length; i += BATCH) {
   const batch = lessons.slice(i, i + BATCH)
   const { error } = await db
     .from('cpp_lessons')
-    .upsert(batch, { onConflict: 'slug', ignoreDuplicates: true })
+    .upsert(batch, { onConflict: 'slug', ignoreDuplicates: false })
   if (error) throw new Error(`Upsert failed: ${error.message}`)
 }
 

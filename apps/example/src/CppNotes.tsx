@@ -7,6 +7,7 @@ import { supabase } from './supabase'
 interface Lesson {
   id: number
   chapter: string
+  chapter_title: string
   lesson_number: string
   lesson_title: string
   scraped_at: string | null
@@ -18,6 +19,15 @@ interface Lesson {
 interface LessonDetail extends Lesson {
   formatted_notes: string | null
   clean_text: string | null
+}
+
+// Map chapter → chapter_title from the lesson list
+function chapterTitleMap(lessons: Lesson[]): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const l of lessons) {
+    if (!map[l.chapter]) map[l.chapter] = l.chapter_title
+  }
+  return map
 }
 
 function StatusDot({ done }: { done: boolean }) {
@@ -135,7 +145,7 @@ export default function CppNotes() {
   useEffect(() => {
     supabase
       .from('cpp_lessons')
-      .select('id, chapter, lesson_number, lesson_title, scraped_at, extracted_at, formatted_at, cards_at')
+      .select('id, chapter, chapter_title, lesson_number, lesson_title, scraped_at, extracted_at, formatted_at, cards_at')
       .order('chapter', { ascending: true })
       .order('lesson_number', { ascending: true })
       .then(({ data }) => {
@@ -150,6 +160,7 @@ export default function CppNotes() {
     ),
     [lessons]
   )
+  const chTitles = useMemo(() => chapterTitleMap(lessons), [lessons])
 
   const visible = chapter === 'all' ? lessons : lessons.filter(l => l.chapter === chapter)
 
@@ -164,7 +175,7 @@ export default function CppNotes() {
     setLoadingDetail(true)
     const { data } = await supabase
       .from('cpp_lessons')
-      .select('id, chapter, lesson_number, lesson_title, scraped_at, extracted_at, formatted_at, cards_at, formatted_notes, clean_text')
+      .select('id, chapter, chapter_title, lesson_number, lesson_title, scraped_at, extracted_at, formatted_at, cards_at, formatted_notes, clean_text')
       .eq('id', lesson.id)
       .single()
     setSelected(data as LessonDetail ?? null)
@@ -199,7 +210,7 @@ export default function CppNotes() {
           <option value="all">All chapters ({lessons.length})</option>
           {chapters.map(ch => (
             <option key={ch} value={ch}>
-              Ch.{ch} — {chapterStatus(ch)} notes ready
+              Ch.{ch} — {chTitles[ch]} ({chapterStatus(ch)} notes)
             </option>
           ))}
         </select>
