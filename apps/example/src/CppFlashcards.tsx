@@ -428,6 +428,88 @@ function NotesSheet({ card, onClose }: { card: Flashcard; onClose: () => void })
   )
 }
 
+// ── Add card panel (inline split) ─────────────────────────────
+function AddCardPanel({ chapter, onSave, onClose }: {
+  chapter: string
+  onSave: (q: string, a: string) => void
+  onClose: () => void
+}) {
+  const [q, setQ]           = useState('')
+  const [a, setA]           = useState('')
+  const [aiNote, setAiNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]   = useState('')
+
+  async function handleGenerate() {
+    if (!q.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      const context = await fetchNotesContext(chapter)
+      const text    = await callClaude(buildGeneratePrompt(q, aiNote, context), 'cpp-quiz')
+      const json    = parseJsonFromText(text)
+      if (json.answer) setA(json.answer)
+    } catch {
+      setError('AI failed — check ANTHROPIC_API_KEY.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function handleSave() {
+    if (!q.trim() || !a.trim()) return
+    onSave(q.trim(), a.trim())
+    onClose()
+  }
+
+  return (
+    <div className="fq-add-panel">
+      <div className="fq-add-header">
+        <span className="fq-add-title">New card</span>
+        <button className="fq-add-close" onClick={onClose}>✕</button>
+      </div>
+      <div className="fq-add-body">
+        <textarea
+          className="fq-edit-textarea"
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          rows={3}
+          placeholder="Question…"
+        />
+        <textarea
+          className="fq-edit-textarea"
+          value={a}
+          onChange={e => setA(e.target.value)}
+          rows={5}
+          placeholder="Answer… (or generate below)"
+        />
+        <input
+          className="fq-edit-input"
+          value={aiNote}
+          onChange={e => setAiNote(e.target.value)}
+          placeholder="Note to AI (optional)"
+        />
+        {error && <p className="fq-edit-error">{error}</p>}
+        <button
+          className="btn btn-primary fq-edit-ai-btn"
+          onClick={handleGenerate}
+          disabled={loading || !q.trim()}
+        >
+          {loading ? 'Thinking…' : '✦ Generate answer'}
+        </button>
+        <div className="fq-edit-actions">
+          <button className="btn fq-edit-discard" onClick={onClose}>Discard</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={!q.trim() || !a.trim()}
+          >Save</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Bucket bar ─────────────────────────────────────────────────
 function BucketBar({ bucket }: { bucket: number }) {
   const pct   = Math.min(bucket / MAX_BUCKET, 1)
@@ -628,7 +710,6 @@ export default function CppFlashcards() {
         </div>
         <HeaderRight options={close => (<>
           <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
-          <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
           {graveyard.size > 0 && (
             <button className="header-toast-item" onClick={() => { close(); setGraveyard(new Set()); saveGraveyard(new Set()) }}>
@@ -686,6 +767,7 @@ export default function CppFlashcards() {
 
       {/* Card */}
       <div className="fq-body">
+        <div className={`fq-card-area${addOpen ? ' fq-card-area-split' : ''}`}>
         <div className={`fq-card${revealed ? ' fq-card-revealed' : ''}`}>
 
           {/* Question — always visible */}
@@ -715,6 +797,16 @@ export default function CppFlashcards() {
           </div>
         </div>
 
+        {/* Inline add card panel */}
+        {addOpen && (
+          <AddCardPanel
+            chapter={chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter}
+            onSave={handleSaveNew}
+            onClose={() => setAddOpen(false)}
+          />
+        )}
+        </div>{/* end fq-card-area */}
+
         {/* Post-reveal actions */}
         {revealed && (
           <div className="fq-card-actions">
@@ -723,6 +815,10 @@ export default function CppFlashcards() {
             )}
             <button className="fq-action-btn" onClick={() => setEditOpen(true)}>✎ Edit</button>
             <button className="fq-action-btn fq-action-archive" onClick={handleArchive}>⊗ Archive</button>
+            <button
+              className={`fq-action-btn${addOpen ? ' fq-action-btn-active' : ''}`}
+              onClick={() => setAddOpen(o => !o)}
+            >＋ Add</button>
           </div>
         )}
 
@@ -787,14 +883,6 @@ export default function CppFlashcards() {
           chapter={card.chapter}
           onSave={handleSaveEdit}
           onClose={() => setEditOpen(false)}
-        />
-      )}
-      {addOpen && (
-        <EditSheet
-          mode="new"
-          chapter={chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter}
-          onSave={handleSaveNew}
-          onClose={() => setAddOpen(false)}
         />
       )}
     </div>

@@ -1956,6 +1956,95 @@ a { color: inherit; text-decoration: none; }
 }
 .fq-action-btn:active { opacity: 0.6; }
 .fq-action-archive { color: #c94a4a; }
+.fq-action-btn-active { color: var(--text); opacity: 0.9; }
+
+/* Split card area */
+.fq-card-area {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+}
+
+.fq-card-area-split {
+  flex-direction: row;
+  gap: 0.5rem;
+  max-width: none;
+  align-items: flex-start;
+}
+
+.fq-card-area-split .fq-card {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+
+/* Inline add card panel */
+.fq-add-panel {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fq-add-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fq-add-title {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+}
+
+.fq-add-close {
+  background: none;
+  border: none;
+  color: var(--muted-hi);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fq-add-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.65rem 0.75rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: 70vh;
+}
+
+/* Tighter textarea/input sizing inside the narrow add panel */
+.fq-add-body .fq-edit-textarea,
+.fq-add-body .fq-edit-input {
+  font-size: 0.75rem;
+  padding: 0.5rem 0.6rem;
+}
+
+.fq-add-body .fq-edit-ai-btn {
+  font-size: 0.65rem;
+  padding: 0.45rem;
+}
+
+.fq-add-body .fq-edit-actions .btn {
+  font-size: 0.65rem;
+  padding: 0.45rem;
+}
 
 /* Notes toggle (kept for compatibility) */
 .fq-notes-toggle {
