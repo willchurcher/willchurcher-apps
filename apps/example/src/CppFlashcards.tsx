@@ -546,12 +546,17 @@ export default function CppFlashcards() {
   const [editOpen, setEditOpen]           = useState(false)
   const [addOpen, setAddOpen]             = useState(false)
 
+  // Cards for queue ordering — no overrides, so edits don't reshuffle the queue
   const cards  = useMemo(
-    () => getCards(chapter, overrides, customs, importanceFilter, importanceMap, graveyard),
-    [chapter, overrides, customs, importanceFilter, importanceMap, graveyard]
+    () => getCards(chapter, {}, customs, importanceFilter, importanceMap, graveyard),
+    [chapter, customs, importanceFilter, importanceMap, graveyard]
   )
   const queue  = useMemo(() => computeQueue(cards, progress), [cards, progress])
-  const card   = queue[0]
+  // Apply overrides at display time only
+  const cardRaw = queue[0]
+  const card = cardRaw && overrides[cardRaw.id]
+    ? { ...cardRaw, ...overrides[cardRaw.id] }
+    : cardRaw
   const bucket = card ? (progress[card.id]?.bucket ?? 0) : 0
   const cardImportance = card ? ((importanceMap[card.id] ?? 0) as Importance) : 0
 
