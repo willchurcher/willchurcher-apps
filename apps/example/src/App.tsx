@@ -13,6 +13,7 @@ import OptionsLab from './OptionsLab'
 import VoicePlanner from './VoicePlanner'
 import CppFlashcards from './CppFlashcards'
 import CppFlashcardsV2 from './CppFlashcardsV2'
+import CppNotes from './CppNotes'
 import ClaudeUsage from './ClaudeUsage'
 import { HeaderRight } from './HeaderRight'
 
@@ -28,6 +29,7 @@ const APP_LIST = [
   { name: 'Planner',  path: '/planner',  icon: '🎙', gradient: 'linear-gradient(145deg, #4a2a6a, #1a0a3a)' },
   { name: 'C++ Quiz',     path: '/cpp-quiz',     icon: '⚡', gradient: 'linear-gradient(145deg, #1a4a2a, #0a2a10)' },
   { name: 'C++ Ch.1',    path: '/cpp-ch1',      icon: '⚡', gradient: 'linear-gradient(145deg, #0a3a4a, #051a2a)' },
+  { name: 'C++ Notes',   path: '/cpp-notes',    icon: '📝', gradient: 'linear-gradient(145deg, #1a2a4a, #0a1020)' },
   { name: 'Claude Usage', path: '/claude-usage', icon: '◈', gradient: 'linear-gradient(145deg, #3a2a5a, #1a0a3a)' },
 ]
 
@@ -343,6 +345,7 @@ function AppContent() {
         <Route path="/planner"   element={<VoicePlanner />} />
         <Route path="/cpp-quiz"     element={<CppFlashcards />} />
         <Route path="/cpp-ch1"      element={<CppFlashcardsV2 />} />
+        <Route path="/cpp-notes"    element={<CppNotes />} />
         <Route path="/claude-usage" element={<ClaudeUsage />} />
       </Routes>
     </BrowserRouter>
