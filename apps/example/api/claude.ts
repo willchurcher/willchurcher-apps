@@ -37,5 +37,9 @@ export default async function handler(req: any, res: any) {
     return
   }
 
-  res.json({ text: data.content[0].text })
+  res.json({
+    text: data.content[0].text,
+    model: data.model,
+    usage: data.usage,  // { input_tokens, output_tokens }
+  })
 }

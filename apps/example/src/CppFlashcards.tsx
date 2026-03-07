@@ -3,16 +3,33 @@ import { useNavigate } from 'react-router-dom'
 import { marked } from 'marked'
 import { HeaderRight } from './HeaderRight'
 import { FLASHCARDS, CHAPTERS, CHAPTER_NAMES, type Flashcard } from './cpp-flashcards-data'
+import { callClaude } from './claude-utils'
 
 // ── SRS constants ──────────────────────────────────────────────
-const A_MS = 60 * 1000
-const MAX_BUCKET = 14
+const A_MS          = 60 * 1000
+const MAX_BUCKET    = 14
 const STORAGE_KEY   = 'cpp-fc-progress'
 const OVERRIDES_KEY = 'cpp-fc-overrides'
 const CUSTOM_KEY    = 'cpp-fc-custom'
+const IMPORTANCE_KEY = 'cpp-fc-importance'
 
-function bucketIntervalMs(bucket: number): number {
-  return A_MS * Math.pow(2, bucket)
+// importance: -2=very low, -1=low, 0=medium, 1=high, 2=very high
+export type Importance = -2 | -1 | 0 | 1 | 2
+type ImportanceMap = Record<number, Importance>
+
+export const IMPORTANCE_NAMES: Record<Importance, string> = {
+  '-2': 'Very Low',
+  '-1': 'Low',
+   '0': 'Medium',
+   '1': 'High',
+   '2': 'Very High',
+}
+
+// Higher importance → shorter interval (see more often)
+const IMPORTANCE_FACTOR: Record<number, number> = { '-2': 2, '-1': 1.5, 0: 1, 1: 0.67, 2: 0.5 }
+
+function bucketIntervalMs(bucket: number, importance: Importance = 0): number {
+  return A_MS * Math.pow(2, bucket) * (IMPORTANCE_FACTOR[importance] ?? 1)
 }
 
 function formatInterval(ms: number): string {
@@ -62,6 +79,14 @@ function saveCustomCards(cards: Flashcard[]) {
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(cards))
 }
 
+function loadImportance(): ImportanceMap {
+  try { return JSON.parse(localStorage.getItem(IMPORTANCE_KEY) ?? '{}') }
+  catch { return {} }
+}
+function saveImportance(m: ImportanceMap) {
+  localStorage.setItem(IMPORTANCE_KEY, JSON.stringify(m))
+}
+
 // ── Queue logic ────────────────────────────────────────────────
 function applyOverrides(cards: Flashcard[], overrides: OverridesMap): Flashcard[] {
   return cards.map(c => {
@@ -70,22 +95,36 @@ function applyOverrides(cards: Flashcard[], overrides: OverridesMap): Flashcard[
   })
 }
 
-function getCards(chapter: string, overrides: OverridesMap, customs: Flashcard[]): Flashcard[] {
+function getCards(
+  chapter: string,
+  overrides: OverridesMap,
+  customs: Flashcard[],
+  importanceFilter: Importance | 'all',
+  importanceMap: ImportanceMap,
+): Flashcard[] {
   const base = chapter === 'all' ? FLASHCARDS : FLASHCARDS.filter(c => c.chapter === chapter)
   const withOverrides = applyOverrides(base, overrides)
   const filtered = chapter === 'all' ? customs : customs.filter(c => c.chapter === chapter)
-  return [...withOverrides, ...filtered]
+  const all = [...withOverrides, ...filtered]
+  if (importanceFilter === 'all') return all
+  return all.filter(c => (importanceMap[c.id] ?? 0) === importanceFilter)
 }
 
-function computeQueue(cards: Flashcard[], progress: ProgressMap): Flashcard[] {
+function computeQueue(cards: Flashcard[], progress: ProgressMap, importanceMap: ImportanceMap): Flashcard[] {
   const now = Date.now()
   const due: Flashcard[]    = []
   const unseen: Flashcard[] = []
 
   for (const c of cards) {
-    const s = progress[c.id]
-    if (!s)                       unseen.push(c)
-    else if (s.nextReview <= now) due.push(c)
+    const s   = progress[c.id]
+    const imp = (importanceMap[c.id] ?? 0) as Importance
+    if (!s) {
+      unseen.push(c)
+    } else {
+      // Adjust effective due time by importance: high importance = see sooner
+      const effective = s.nextReview * (IMPORTANCE_FACTOR[imp] ?? 1)
+      if (effective <= now) due.push(c)
+    }
   }
 
   due.sort((a, b) => (progress[a.id]?.nextReview ?? 0) - (progress[b.id]?.nextReview ?? 0))
@@ -96,29 +135,21 @@ function computeQueue(cards: Flashcard[], progress: ProgressMap): Flashcard[] {
   return [...due, ...unseen]
 }
 
-function nextDueTs(progress: ProgressMap, cards: Flashcard[]): number | null {
+function nextDueTs(progress: ProgressMap, cards: Flashcard[], importanceMap: ImportanceMap): number | null {
   const now = Date.now()
   let earliest: number | null = null
   for (const c of cards) {
-    const s = progress[c.id]
-    if (!s || s.nextReview <= now) continue
+    const s   = progress[c.id]
+    const imp = (importanceMap[c.id] ?? 0) as Importance
+    if (!s) continue
+    const effective = s.nextReview * (IMPORTANCE_FACTOR[imp] ?? 1)
+    if (effective <= now) continue
     if (earliest === null || s.nextReview < earliest) earliest = s.nextReview
   }
   return earliest
 }
 
 // ── AI helpers ─────────────────────────────────────────────────
-async function callClaude(prompt: string): Promise<string> {
-  const res = await fetch('/api/claude', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ prompt }),
-  })
-  if (!res.ok) throw new Error('API error')
-  const data = await res.json()
-  return data.text
-}
-
 function parseJsonFromText(text: string): Record<string, string> {
   const match = text.match(/\{[\s\S]*\}/)
   if (!match) throw new Error('No JSON found')
@@ -222,16 +253,18 @@ interface EditSheetProps {
   mode: 'edit' | 'new'
   card?: Flashcard
   chapter: string
-  onSave: (q: string, a: string) => void
+  initialImportance?: Importance
+  onSave: (q: string, a: string, importance: Importance) => void
   onClose: () => void
 }
 
-function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
-  const [q, setQ]         = useState(card?.q ?? '')
-  const [a, setA]         = useState(card?.a ?? '')
-  const [aiNote, setAiNote] = useState('')
+function EditSheet({ mode, card, chapter, initialImportance = 0, onSave, onClose }: EditSheetProps) {
+  const [q, setQ]             = useState(card?.q ?? '')
+  const [a, setA]             = useState(card?.a ?? '')
+  const [aiNote, setAiNote]   = useState('')
+  const [importance, setImp]  = useState<Importance>(initialImportance)
   const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
+  const [error, setError]     = useState('')
   const [visible, setVisible] = useState(false)
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
@@ -243,7 +276,7 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
 
   function handleSave() {
     if (!q.trim() || !a.trim()) return
-    onSave(q.trim(), a.trim())
+    onSave(q.trim(), a.trim(), importance)
     handleClose()
   }
 
@@ -256,7 +289,7 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
       const prompt  = mode === 'edit'
         ? buildEnhancePrompt(q, a, aiNote, context)
         : buildGeneratePrompt(q, aiNote, context)
-      const text   = await callClaude(prompt)
+      const text   = await callClaude(prompt, 'cpp-quiz')
       const json   = parseJsonFromText(text)
       if (mode === 'edit' && json.question) setQ(json.question)
       if (json.answer) setA(json.answer)
@@ -312,6 +345,19 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
             onChange={e => setAiNote(e.target.value)}
             placeholder='e.g. "expand on what portability means here"'
           />
+
+          <label className="fq-edit-label">Importance</label>
+          <div className="fq-importance-row">
+            {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+              <button
+                key={v}
+                className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${importance === v ? ' fq-imp-active' : ''}`}
+                onClick={() => setImp(v)}
+              >
+                {IMPORTANCE_NAMES[v]}
+              </button>
+            ))}
+          </div>
 
           {error && <p className="fq-edit-error">{error}</p>}
 
@@ -404,20 +450,26 @@ function BucketBar({ bucket }: { bucket: number }) {
 // ── Main component ─────────────────────────────────────────────
 export default function CppFlashcards() {
   const navigate = useNavigate()
-  const [chapter, setChapter]       = useState('all')
-  const [progress, setProgress]     = useState<ProgressMap>(loadProgress)
-  const [overrides, setOverrides]   = useState<OverridesMap>(loadOverrides)
-  const [customs, setCustoms]       = useState<Flashcard[]>(loadCustomCards)
-  const [revealed, setRevealed]     = useState(false)
-  const [graduated, setGraduated]   = useState(0)
-  const [notesOpen, setNotesOpen]   = useState(false)
-  const [editOpen, setEditOpen]     = useState(false)
-  const [addOpen, setAddOpen]       = useState(false)
+  const [chapter, setChapter]             = useState('all')
+  const [progress, setProgress]           = useState<ProgressMap>(loadProgress)
+  const [overrides, setOverrides]         = useState<OverridesMap>(loadOverrides)
+  const [customs, setCustoms]             = useState<Flashcard[]>(loadCustomCards)
+  const [importanceMap, setImportanceMap] = useState<ImportanceMap>(loadImportance)
+  const [importanceFilter, setImpFilter]  = useState<Importance | 'all'>('all')
+  const [revealed, setRevealed]           = useState(false)
+  const [graduated, setGraduated]         = useState(0)
+  const [notesOpen, setNotesOpen]         = useState(false)
+  const [editOpen, setEditOpen]           = useState(false)
+  const [addOpen, setAddOpen]             = useState(false)
 
-  const cards = useMemo(() => getCards(chapter, overrides, customs), [chapter, overrides, customs])
-  const queue = useMemo(() => computeQueue(cards, progress), [cards, progress])
-  const card  = queue[0]
+  const cards  = useMemo(
+    () => getCards(chapter, overrides, customs, importanceFilter, importanceMap),
+    [chapter, overrides, customs, importanceFilter, importanceMap]
+  )
+  const queue  = useMemo(() => computeQueue(cards, progress, importanceMap), [cards, progress, importanceMap])
+  const card   = queue[0]
   const bucket = card ? (progress[card.id]?.bucket ?? 0) : 0
+  const cardImportance = card ? ((importanceMap[card.id] ?? 0) as Importance) : 0
 
   function changeChapter(ch: string) {
     setChapter(ch)
@@ -432,7 +484,7 @@ export default function CppFlashcards() {
     const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
     const newProgress: ProgressMap = {
       ...progress,
-      [card.id]: { bucket: newBucket, nextReview: Date.now() + bucketIntervalMs(newBucket) },
+      [card.id]: { bucket: newBucket, nextReview: Date.now() + bucketIntervalMs(newBucket, cardImportance) },
     }
     setProgress(newProgress)
     saveProgress(newProgress)
@@ -456,9 +508,10 @@ export default function CppFlashcards() {
       const delta = deltaMap[e.key]
       if (delta !== undefined) {
         const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
+        const imp = (importanceMap[card.id] ?? 0) as Importance
         const newProgress: ProgressMap = {
           ...progress,
-          [card.id]: { bucket: newBucket, nextReview: Date.now() + bucketIntervalMs(newBucket) },
+          [card.id]: { bucket: newBucket, nextReview: Date.now() + bucketIntervalMs(newBucket, imp) },
         }
         setProgress(newProgress)
         saveProgress(newProgress)
@@ -480,22 +533,26 @@ export default function CppFlashcards() {
     setGraduated(0)
   }
 
-  function handleSaveEdit(q: string, a: string) {
+  function handleSaveEdit(q: string, a: string, imp: Importance) {
     if (!card) return
     const newOverrides = { ...overrides, [card.id]: { q, a } }
     setOverrides(newOverrides)
     saveOverrides(newOverrides)
+    const newImpMap = { ...importanceMap, [card.id]: imp }
+    setImportanceMap(newImpMap)
+    saveImportance(newImpMap)
   }
 
-  function handleSaveNew(q: string, a: string) {
-    const id = Date.now()
+  function handleSaveNew(q: string, a: string, imp: Importance) {
+    const id  = Date.now()
     const ch  = chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter
-    const newCard: Flashcard = {
-      id, chapter: ch, topic: 'Custom', noteSection: '', q, a,
-    }
+    const newCard: Flashcard = { id, chapter: ch, topic: 'Custom', noteSection: '', q, a }
     const newCustoms = [...customs, newCard]
     setCustoms(newCustoms)
     saveCustomCards(newCustoms)
+    const newImpMap = { ...importanceMap, [id]: imp }
+    setImportanceMap(newImpMap)
+    saveImportance(newImpMap)
   }
 
   const totalSession = graduated + queue.length
@@ -503,7 +560,7 @@ export default function CppFlashcards() {
 
   // ── Empty queue ──────────────────────────────────────────────
   if (queue.length === 0) {
-    const next   = nextDueTs(progress, cards)
+    const next   = nextDueTs(progress, cards, importanceMap)
     const total  = cards.length
     const seen   = cards.filter(c => progress[c.id]).length
     const onTime = cards.filter(c => {
@@ -582,7 +639,7 @@ export default function CppFlashcards() {
           className={`fq-pill${chapter === 'all' ? ' fq-pill-active' : ''}`}
           onClick={() => changeChapter('all')}
         >
-          All ({getCards('all', overrides, customs).length})
+          All ({getCards('all', overrides, customs, 'all', importanceMap).length})
         </button>
         {CHAPTERS.map(ch => (
           <button
@@ -590,7 +647,24 @@ export default function CppFlashcards() {
             className={`fq-pill${chapter === ch ? ' fq-pill-active' : ''}`}
             onClick={() => changeChapter(ch)}
           >
-            {CHAPTER_NAMES[ch]} ({getCards(ch, overrides, customs).length})
+            {CHAPTER_NAMES[ch]} ({getCards(ch, overrides, customs, 'all', importanceMap).length})
+          </button>
+        ))}
+      </div>
+
+      {/* Importance filter */}
+      <div className="fq-topics fq-importance-filter">
+        <button
+          className={`fq-pill${importanceFilter === 'all' ? ' fq-pill-active' : ''}`}
+          onClick={() => setImpFilter('all')}
+        >All</button>
+        {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+          <button
+            key={v}
+            className={`fq-pill fq-imp-pill-${v < 0 ? 'n' : ''}${Math.abs(v)}${importanceFilter === v ? ' fq-pill-active' : ''}`}
+            onClick={() => setImpFilter(v)}
+          >
+            {IMPORTANCE_NAMES[v]}
           </button>
         ))}
       </div>
@@ -615,7 +689,14 @@ export default function CppFlashcards() {
         >
           {/* Question face */}
           <div className={`fq-face ${revealed ? 'fq-face-hidden' : 'fq-face-visible'}`}>
-            <span className="fq-topic-badge">{card.topic}</span>
+            <div className="fq-badges">
+              <span className="fq-topic-badge">{card.topic}</span>
+              {cardImportance !== 0 && (
+                <span className={`fq-imp-badge fq-imp-badge-${cardImportance < 0 ? 'n' : ''}${Math.abs(cardImportance)}`}>
+                  {IMPORTANCE_NAMES[cardImportance]}
+                </span>
+              )}
+            </div>
             <CardText text={card.q} className="fq-q-text" />
             <div className="fq-front-footer">
               <BucketBar bucket={bucket} />
@@ -681,6 +762,7 @@ export default function CppFlashcards() {
           mode="edit"
           card={card}
           chapter={card.chapter}
+          initialImportance={cardImportance}
           onSave={handleSaveEdit}
           onClose={() => setEditOpen(false)}
         />
