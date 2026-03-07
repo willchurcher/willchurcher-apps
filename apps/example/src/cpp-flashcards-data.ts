@@ -74,7 +74,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 8, chapter: '0', topic: 'Low-Level', noteSection: 'Downsides of Low-Level Languages',
     q: 'What are the four main downsides of low-level languages?',
-    a: '• Not portable — tied to a specific ISA\n• Requires deep hardware knowledge\n• Hard to read and reason about\n• Limited expressiveness — only primitive operations',
+    a: '• **Portability**: tied to a specific ISA — porting requires a complete rewrite.\n• **Knowledge**: requires deep understanding of the target hardware.\n• **Readability**: even simple tasks take many instructions; the big picture is hard to see.\n• **Expressiveness**: only primitive operations — everything must be built from scratch.',
   },
   {
     id: 9, chapter: '0', topic: 'Low-Level', noteSection: 'Downsides of Low-Level Languages',
@@ -91,7 +91,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 11, chapter: '0', topic: 'High-Level', noteSection: 'High-Level Languages',
     q: 'What are the two methods for translating high-level code into machine code?',
-    a: '• Compilation — ahead-of-time, produces an executable\n• Interpretation — at runtime, executes source line by line',
+    a: '• **Compilation**: ahead-of-time — produces a standalone executable.\n• **Interpretation**: at runtime — executes source line by line.',
   },
   {
     id: 12, chapter: '0', topic: 'High-Level', noteSection: 'High-Level Languages',
@@ -150,7 +150,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 22, chapter: '0', topic: 'Dev Process', noteSection: 'Development Process',
     q: 'What are the 7 steps of the C++ development process?',
-    a: '1. Define problem\n2. Design solution\n3. Write program\n4. Compile\n5. Link object files\n6. Test\n7. Debug → loop back to step 4',
+    a: '1. **Define**: the problem.\n2. **Design**: the solution.\n3. **Write**: the program.\n4. **Compile**: check for errors, produce object files.\n5. **Link**: combine object files into an executable.\n6. **Test**: verify correctness.\n7. **Debug**: fix issues — loop back to step 4.',
   },
   {
     id: 23, chapter: '0', topic: 'Dev Process', noteSection: 'Development Process',
@@ -162,7 +162,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 24, chapter: '0', topic: 'Compiler', noteSection: 'The Compiler',
     q: 'What are the two main things a compiler does?',
-    a: '• Checks code against C++ language rules — aborts on errors with line numbers\n• Translates C++ into machine language, stored in an object file',
+    a: '• **Validates**: checks code against C++ language rules — aborts on errors with line numbers.\n• **Translates**: C++ into machine language, stored in an object file.',
   },
   {
     id: 25, chapter: '0', topic: 'Compiler', noteSection: 'The Compiler',
@@ -214,7 +214,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 34, chapter: '0', topic: 'Linker', noteSection: 'The Linker',
     q: 'What are the four tasks of the linker?',
-    a: '• Reads and validates object files\n• Resolves cross-file dependencies (connects definitions to uses)\n• Links library files (Standard Library + third-party)\n• Outputs the final executable',
+    a: '• **Read**: validates all object files.\n• **Resolve**: cross-file dependencies — connects definitions to uses.\n• **Link**: library files (Standard Library + third-party).\n• **Output**: the final executable.',
   },
   {
     id: 35, chapter: '0', topic: 'Linker', noteSection: 'The Linker',
@@ -229,7 +229,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 37, chapter: '0', topic: 'Linker', noteSection: 'The Linker',
     q: 'What is the difference between the Standard Library and third-party libraries?',
-    a: '• Standard Library — ships with C++, linked by default\n• Third-party — external, specialized (audio, graphics, etc.), must be explicitly added',
+    a: '• **Standard Library**: ships with C++, linked by default (e.g. iostream).\n• **Third-party**: external, specialised — must be explicitly added (e.g. audio, graphics).',
   },
   {
     id: 38, chapter: '0', topic: 'Linker', noteSection: 'The Linker',
@@ -303,7 +303,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 51, chapter: '0', topic: 'Settings', noteSection: 'Compiler Settings and Best Practices',
     q: 'What is the full layered toolkit for standards compliance?',
-    a: '• `-pedantic-errors` — syntax extensions\n• `-Wall -Wextra` — common mistakes\n• `-fsanitize=undefined` — runtime UB\n• `clang-tidy` — static analysis\n• Test on multiple compilers — portability',
+    a: '• **`-pedantic-errors`**: disables non-standard compiler extensions.\n• **`-Wall -Wextra`**: catches common mistakes and code smells.\n• **UBSan** (`-fsanitize=undefined`): instruments binary for runtime UB detection.\n• **`clang-tidy`**: static analysis beyond the compiler.\n• **Multi-compiler**: test on several compilers for portability.',
   },
 
   // ── Instructions ──────────────────────────────────────────
@@ -315,7 +315,7 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 53, chapter: '0', topic: 'Instructions', noteSection: 'Machine Language Instruction Set',
     q: 'Name the data movement instructions and what each does.',
-    a: '• MOV — copy between registers/memory\n• LOAD — memory → register\n• STORE — register → memory\n• PUSH — onto stack\n• POP — off stack',
+    a: '• **MOV**: copy value between registers or memory locations.\n• **LOAD**: move value from memory into a register.\n• **STORE**: write register value out to memory.\n• **PUSH**: place value onto the stack.\n• **POP**: remove top value from the stack.',
   },
   {
     id: 54, chapter: '0', topic: 'Instructions', noteSection: 'Machine Language Instruction Set',
@@ -330,17 +330,17 @@ export const FLASHCARDS: Flashcard[] = [
   {
     id: 56, chapter: '0', topic: 'Instructions', noteSection: 'Machine Language Instruction Set',
     q: 'What do CMP, JMP, and JE/JNE/JG/JL do?',
-    a: '• CMP — compares two values, sets CPU flags\n• JMP — unconditional jump to address\n• JE/JNE/JG/JL — conditional jumps based on those flags',
+    a: '• **CMP**: compares two values, sets CPU flags.\n• **JMP**: unconditional jump to a given address.\n• **JE/JNE/JG/JL**: conditional jumps based on the CPU flags set by CMP.',
   },
   {
     id: 57, chapter: '0', topic: 'Instructions', noteSection: 'Machine Language Instruction Set',
     q: 'What do CALL and RET do?',
-    a: '• CALL — jumps to a subroutine, saves return address on the stack\n• RET — pops the return address and jumps back to it',
+    a: '• **CALL**: jumps to a subroutine, saves the return address on the stack.\n• **RET**: pops the return address and jumps back to it.',
   },
   {
     id: 58, chapter: '0', topic: 'Instructions', noteSection: 'Machine Language Instruction Set',
     q: 'What do NOP, HLT, and INT do?',
-    a: '• NOP — no operation (burn a cycle, used for alignment/timing)\n• HLT — halt the CPU\n• INT — trigger a software interrupt (syscall)',
+    a: '• **NOP**: no operation — burns a cycle, used for alignment or timing.\n• **HLT**: halt the CPU.\n• **INT**: trigger a software interrupt (syscall).',
   },
   {
     id: 59, chapter: '0', topic: 'Instructions', noteSection: 'Machine Language Instruction Set',

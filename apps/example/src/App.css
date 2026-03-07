@@ -1803,7 +1803,6 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   transition: background 0.25s, border-color 0.25s;
   -webkit-tap-highlight-color: transparent;
-  user-select: none;
 }
 
 .fq-card-revealed {
@@ -1854,6 +1853,8 @@ a { color: inherit; text-decoration: none; }
   color: var(--text);
   line-height: 1.55;
   margin: 0;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .fq-front-footer {
@@ -1890,6 +1891,8 @@ a { color: inherit; text-decoration: none; }
   margin: 0;
   white-space: pre-line;
   text-align: left;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Bucket bar */

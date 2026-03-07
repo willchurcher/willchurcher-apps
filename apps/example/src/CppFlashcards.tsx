@@ -80,6 +80,22 @@ function nextDueTs(progress: ProgressMap, chapter: string): number | null {
   return earliest
 }
 
+// ── Inline markdown renderer ───────────────────────────────────
+// Renders **bold** and `code` inline; splits \n into line breaks.
+function CardText({ text, className }: { text: string; className: string }) {
+  const lines = text.split('\n')
+  return (
+    <p className={className}>
+      {lines.map((line, i) => (
+        <span key={i}>
+          {i > 0 && <br />}
+          <span dangerouslySetInnerHTML={{ __html: marked.parseInline(line) as string }} />
+        </span>
+      ))}
+    </p>
+  )
+}
+
 // ── Notes section extraction ───────────────────────────────────
 function extractSection(md: string, heading: string): string {
   const lines = md.split('\n')
@@ -327,14 +343,14 @@ export default function CppFlashcards() {
       <div className="fq-body">
         <div
           className={`fq-card${revealed ? ' fq-card-revealed' : ''}`}
-          onClick={() => !revealed && setRevealed(true)}
+          onClick={() => { if (!revealed && !window.getSelection()?.toString()) setRevealed(true) }}
           role="button"
           aria-label="Reveal answer"
         >
           {/* Question face */}
           <div className={`fq-face ${revealed ? 'fq-face-hidden' : 'fq-face-visible'}`}>
             <span className="fq-topic-badge">{card.topic}</span>
-            <p className="fq-q-text">{card.q}</p>
+            <CardText text={card.q} className="fq-q-text" />
             <div className="fq-front-footer">
               <BucketBar bucket={bucket} />
               <span className="fq-flip-hint">tap to reveal</span>
@@ -344,7 +360,7 @@ export default function CppFlashcards() {
           {/* Answer face */}
           <div className={`fq-face ${revealed ? 'fq-face-visible' : 'fq-face-hidden'}`}>
             <span className="fq-answer-label">Answer</span>
-            <p className="fq-a-text">{card.a}</p>
+            <CardText text={card.a} className="fq-a-text" />
           </div>
         </div>
 
