@@ -1,9 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { marked } from 'marked'
 import { HeaderRight } from './HeaderRight'
 import { FLASHCARDS, CHAPTERS, CHAPTER_NAMES, type Flashcard } from './cpp-flashcards-data'
 import { callClaude } from './claude-utils'
+import { useAuth } from './AuthContext'
+import { loadFromCloud, saveToCloud, saveOverrideToCloud, type CppCloudData, type EditSource } from './cpp-flashcards-db'
 
 // ── SRS constants ──────────────────────────────────────────────
 const A_MS          = 60 * 1000
@@ -262,7 +264,7 @@ interface EditSheetProps {
   mode: 'edit' | 'new'
   card?: Flashcard
   chapter: string
-  onSave: (q: string, a: string) => void
+  onSave: (q: string, a: string, source?: EditSource) => void
   onClose: () => void
 }
 
@@ -271,6 +273,7 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
   const [a, setA]             = useState(card?.a ?? '')
   const [aiNote, setAiNote]   = useState('')
   const [loading, setLoading] = useState(false)
+  const [aiUsed, setAiUsed]   = useState(false)
   const [error, setError]     = useState('')
   const [visible, setVisible] = useState(false)
 
@@ -283,7 +286,7 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
 
   function handleSave() {
     if (!q.trim() || !a.trim()) return
-    onSave(q.trim(), a.trim())
+    onSave(q.trim(), a.trim(), aiUsed ? 'ai-enhance' : 'manual')
     handleClose()
   }
 
@@ -299,7 +302,7 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
       const text   = await callClaude(prompt, 'cpp-quiz')
       const json   = parseJsonFromText(text)
       if (mode === 'edit' && json.question) setQ(json.question)
-      if (json.answer) setA(json.answer)
+      if (json.answer) { setA(json.answer); setAiUsed(true) }
     } catch {
       setError('AI request failed — check that ANTHROPIC_API_KEY is set in Vercel.')
     } finally {
@@ -533,6 +536,7 @@ function BucketBar({ bucket, nextReview }: { bucket: number; nextReview?: number
 // ── Main component ─────────────────────────────────────────────
 export default function CppFlashcards() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [chapter, setChapter]             = useState('all')
   const [progress, setProgress]           = useState<ProgressMap>(loadProgress)
   const [overrides, setOverrides]         = useState<OverridesMap>(loadOverrides)
@@ -547,6 +551,53 @@ export default function CppFlashcards() {
   const [addOpen, setAddOpen]             = useState(false)
   // Tracks which card is being studied — prevents queue reshuffles from swapping the card mid-session
   const [currentCardId, setCurrentCardId] = useState<number | null>(null)
+  const cloudSynced = useRef(false)
+
+  // ── Cloud sync ────────────────────────────────────────────────
+  // On login: load from Supabase (wins over localStorage).
+  // If Supabase has no data yet, migrate current localStorage data up (one-time).
+  useEffect(() => {
+    if (!user || cloudSynced.current) return
+    cloudSynced.current = true
+    loadFromCloud(user.id).then(remote => {
+      if (remote) {
+        // Supabase has data — apply it
+        setOverrides(remote.overrides)
+        saveOverrides(remote.overrides)
+        setCustoms(remote.custom)
+        saveCustomCards(remote.custom)
+        setProgress(remote.progress)
+        saveProgress(remote.progress)
+        const impMap = remote.importance as ImportanceMap
+        setImportanceMap(impMap)
+        saveImportance(impMap)
+        const gy = new Set(remote.graveyard)
+        setGraveyard(gy)
+        saveGraveyard(gy)
+      } else {
+        // No cloud data — migrate localStorage up
+        const local: CppCloudData = {
+          overrides:  loadOverrides(),
+          custom:     loadCustomCards(),
+          progress:   loadProgress(),
+          importance: loadImportance(),
+          graveyard:  [...loadGraveyard()],
+        }
+        saveToCloud(user.id, local)
+      }
+    })
+  }, [user])
+
+  // Helper: build current state snapshot for cloud saves
+  function cloudState(patches: Partial<CppCloudData> = {}): CppCloudData {
+    return {
+      overrides:  patches.overrides  ?? overrides,
+      custom:     patches.custom     ?? customs,
+      progress:   patches.progress   ?? progress,
+      importance: patches.importance ?? importanceMap,
+      graveyard:  patches.graveyard  ?? [...graveyard],
+    }
+  }
 
   // Cards for queue ordering — no overrides, so edits don't reshuffle the queue
   const cards  = useMemo(
@@ -587,6 +638,7 @@ export default function CppFlashcards() {
     }
     setProgress(newProgress)
     saveProgress(newProgress)
+    if (user) saveToCloud(user.id, cloudState({ progress: newProgress }))
     setGraduated(g => g + 1)
     setCurrentCardId(null)
     setRevealed(false)
@@ -615,6 +667,7 @@ export default function CppFlashcards() {
         }
         setProgress(newProgress)
         saveProgress(newProgress)
+        if (user) saveToCloud(user.id, cloudState({ progress: newProgress }))
         setGraduated(g => g + 1)
         setCurrentCardId(null)
         setRevealed(false)
@@ -652,11 +705,12 @@ export default function CppFlashcards() {
     setGraduated(0)
   }
 
-  function handleSaveEdit(q: string, a: string) {
+  function handleSaveEdit(q: string, a: string, source: EditSource = 'manual') {
     if (!card) return
     const newOverrides = { ...overrides, [card.id]: { q, a } }
     setOverrides(newOverrides)
     saveOverrides(newOverrides)
+    if (user) saveOverrideToCloud(user.id, card.id, q, a, cloudState({ overrides: newOverrides }), source)
   }
 
   function handleArchive() {
@@ -665,6 +719,7 @@ export default function CppFlashcards() {
     newGraveyard.add(card.id)
     setGraveyard(newGraveyard)
     saveGraveyard(newGraveyard)
+    if (user) saveToCloud(user.id, cloudState({ graveyard: [...newGraveyard] }))
     setCurrentCardId(null)
     setRevealed(false)
     setGraduated(g => g + 1)
@@ -677,6 +732,7 @@ export default function CppFlashcards() {
     const newCustoms = [...customs, newCard]
     setCustoms(newCustoms)
     saveCustomCards(newCustoms)
+    if (user) saveToCloud(user.id, cloudState({ custom: newCustoms }))
   }
 
   const totalSession = graduated + queue.length
@@ -907,6 +963,7 @@ export default function CppFlashcards() {
                     const newImpMap = { ...importanceMap, [card.id]: v }
                     setImportanceMap(newImpMap)
                     saveImportance(newImpMap)
+                    if (user) saveToCloud(user.id, cloudState({ importance: newImpMap }))
                   }}
                 >
                   {IMPORTANCE_NAMES[v]}
