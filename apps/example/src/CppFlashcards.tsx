@@ -265,13 +265,15 @@ interface EditSheetProps {
   card?: Flashcard
   chapter: string
   onSave: (q: string, a: string, source?: EditSource) => void
+  onSaveNew?: (q: string, a: string, importance: Importance) => void
   onClose: () => void
 }
 
-function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
+function EditSheet({ mode, card, chapter, onSave, onSaveNew, onClose }: EditSheetProps) {
   const [q, setQ]             = useState(card?.q ?? '')
   const [a, setA]             = useState(card?.a ?? '')
   const [aiNote, setAiNote]   = useState('')
+  const [importance, setImp]  = useState<Importance>(0)
   const [loading, setLoading] = useState(false)
   const [aiUsed, setAiUsed]   = useState(false)
   const [error, setError]     = useState('')
@@ -286,7 +288,11 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
 
   function handleSave() {
     if (!q.trim() || !a.trim()) return
-    onSave(q.trim(), a.trim(), aiUsed ? 'ai-enhance' : 'manual')
+    if (mode === 'new' && onSaveNew) {
+      onSaveNew(q.trim(), a.trim(), importance)
+    } else {
+      onSave(q.trim(), a.trim(), aiUsed ? 'ai-enhance' : 'manual')
+    }
     handleClose()
   }
 
@@ -366,6 +372,21 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
             {loading ? 'Thinking…' : mode === 'edit' ? '✦ Enhance with AI' : '✦ Generate answer'}
           </button>
 
+          {mode === 'new' && onSaveNew && (
+            <div className="fq-importance-selector">
+              <span className="fq-importance-label">Importance</span>
+              <div className="fq-importance-row">
+                {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+                  <button
+                    key={v}
+                    className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${importance === v ? ' fq-imp-active' : ''}`}
+                    onClick={() => setImp(v)}
+                  >{v > 0 ? `+${v}` : v}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="fq-edit-actions">
             <button className="btn fq-edit-discard" onClick={handleClose}>
               Discard
@@ -433,14 +454,15 @@ function NotesSheet({ card, onClose }: { card: Flashcard; onClose: () => void })
 // ── Add card panel (inline split) ─────────────────────────────
 function AddCardPanel({ chapter, onSave, onClose }: {
   chapter: string
-  onSave: (q: string, a: string) => void
+  onSave: (q: string, a: string, importance: Importance) => void
   onClose: () => void
 }) {
-  const [q, setQ]           = useState('')
-  const [a, setA]           = useState('')
-  const [aiNote, setAiNote] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
+  const [q, setQ]               = useState('')
+  const [a, setA]               = useState('')
+  const [aiNote, setAiNote]     = useState('')
+  const [importance, setImp]    = useState<Importance>(0)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
 
   async function handleGenerate() {
     if (!q.trim()) return
@@ -460,7 +482,7 @@ function AddCardPanel({ chapter, onSave, onClose }: {
 
   function handleSave() {
     if (!q.trim() || !a.trim()) return
-    onSave(q.trim(), a.trim())
+    onSave(q.trim(), a.trim(), importance)
     onClose()
   }
 
@@ -499,6 +521,18 @@ function AddCardPanel({ chapter, onSave, onClose }: {
         >
           {loading ? 'Thinking…' : '✦ Generate answer'}
         </button>
+        <div className="fq-importance-selector">
+          <span className="fq-importance-label">Importance</span>
+          <div className="fq-importance-row">
+            {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+              <button
+                key={v}
+                className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${importance === v ? ' fq-imp-active' : ''}`}
+                onClick={() => setImp(v)}
+              >{v > 0 ? `+${v}` : v}</button>
+            ))}
+          </div>
+        </div>
         <div className="fq-edit-actions">
           <button className="btn fq-edit-discard" onClick={onClose}>Discard</button>
           <button
@@ -712,14 +746,22 @@ export default function CppFlashcards() {
     setGraduated(g => g + 1)
   }
 
-  function handleSaveNew(q: string, a: string) {
+  function handleSaveNew(q: string, a: string, importance: Importance) {
     const id  = Date.now()
     const ch  = chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter
     const newCard: Flashcard = { id, chapter: ch, topic: 'Custom', noteSection: '', q, a }
     const newCustoms = [...customs, newCard]
     setCustoms(newCustoms)
     saveCustomCards(newCustoms)
-    if (user) saveToCloud(user.id, cloudState({ custom: newCustoms }))
+    // Set importance
+    const newImpMap = { ...importanceMap, [id]: importance }
+    setImportanceMap(newImpMap)
+    saveImportance(newImpMap)
+    // Mark as seen + due immediately so it surfaces right away
+    const newProgress = { ...progress, [id]: { bucket: 0, nextReview: Date.now() } }
+    setProgress(newProgress)
+    saveProgress(newProgress)
+    if (user) saveToCloud(user.id, cloudState({ custom: newCustoms, importance: newImpMap }))
   }
 
   const totalSession = graduated + queue.length
@@ -778,7 +820,8 @@ export default function CppFlashcards() {
           <EditSheet
             mode="new"
             chapter={chapter === 'all' ? (CHAPTERS[0] ?? '0') : chapter}
-            onSave={handleSaveNew}
+            onSave={() => {}}
+            onSaveNew={handleSaveNew}
             onClose={() => setAddOpen(false)}
           />
         )}
