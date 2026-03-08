@@ -21,6 +21,7 @@ const GRAVEYARD_KEY   = 'cpp-fc2-graveyard'
 
 // importance: -2=very low, -1=low, 0=medium, 1=high, 2=very high
 export type Importance = -2 | -1 | 0 | 1 | 2
+type StudyMode = 'srs' | 'shuffle' | 'linear'
 type ImportanceMap = Record<number, Importance>
 
 export const IMPORTANCE_NAMES: Record<Importance, string> = {
@@ -280,13 +281,15 @@ interface EditSheetProps {
   card?: Flashcard
   chapter: string
   onSave: (q: string, a: string, source?: EditSource) => void
+  onSaveNew?: (q: string, a: string, importance: Importance) => void
   onClose: () => void
 }
 
-function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
+function EditSheet({ mode, card, chapter, onSave, onSaveNew, onClose }: EditSheetProps) {
   const [q, setQ]             = useState(card?.q ?? '')
   const [a, setA]             = useState(card?.a ?? '')
   const [aiNote, setAiNote]   = useState('')
+  const [importance, setImp]  = useState<Importance>(0)
   const [loading, setLoading] = useState(false)
   const [aiUsed, setAiUsed]   = useState(false)
   const [error, setError]     = useState('')
@@ -301,7 +304,11 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
 
   function handleSave() {
     if (!q.trim() || !a.trim()) return
-    onSave(q.trim(), a.trim(), aiUsed ? 'ai-enhance' : 'manual')
+    if (mode === 'new' && onSaveNew) {
+      onSaveNew(q.trim(), a.trim(), importance)
+    } else {
+      onSave(q.trim(), a.trim(), aiUsed ? 'ai-enhance' : 'manual')
+    }
     handleClose()
   }
 
@@ -381,6 +388,21 @@ function EditSheet({ mode, card, chapter, onSave, onClose }: EditSheetProps) {
             {loading ? 'Thinking…' : mode === 'edit' ? '✦ Enhance with AI' : '✦ Generate answer'}
           </button>
 
+          {mode === 'new' && onSaveNew && (
+            <div className="fq-importance-selector">
+              <span className="fq-importance-label">Importance</span>
+              <div className="fq-importance-row">
+                {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+                  <button
+                    key={v}
+                    className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${importance === v ? ' fq-imp-active' : ''}`}
+                    onClick={() => setImp(v)}
+                  >{v > 0 ? `+${v}` : v}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="fq-edit-actions">
             <button className="btn fq-edit-discard" onClick={handleClose}>
               Discard
@@ -448,14 +470,15 @@ function NotesSheet({ card, onClose }: { card: Flashcard; onClose: () => void })
 // ── Add card panel (inline split) ─────────────────────────────
 function AddCardPanel({ chapter, onSave, onClose }: {
   chapter: string
-  onSave: (q: string, a: string) => void
+  onSave: (q: string, a: string, importance: Importance) => void
   onClose: () => void
 }) {
-  const [q, setQ]           = useState('')
-  const [a, setA]           = useState('')
-  const [aiNote, setAiNote] = useState('')
+  const [q, setQ]             = useState('')
+  const [a, setA]             = useState('')
+  const [aiNote, setAiNote]   = useState('')
+  const [importance, setImp]  = useState<Importance>(0)
   const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
+  const [error, setError]     = useState('')
 
   async function handleGenerate() {
     if (!q.trim()) return
@@ -475,7 +498,7 @@ function AddCardPanel({ chapter, onSave, onClose }: {
 
   function handleSave() {
     if (!q.trim() || !a.trim()) return
-    onSave(q.trim(), a.trim())
+    onSave(q.trim(), a.trim(), importance)
     onClose()
   }
 
@@ -514,6 +537,18 @@ function AddCardPanel({ chapter, onSave, onClose }: {
         >
           {loading ? 'Thinking…' : '✦ Generate answer'}
         </button>
+        <div className="fq-importance-selector">
+          <span className="fq-importance-label">Importance</span>
+          <div className="fq-importance-row">
+            {([-2, -1, 0, 1, 2] as Importance[]).map(v => (
+              <button
+                key={v}
+                className={`fq-imp-btn fq-imp-${v < 0 ? 'n' : ''}${Math.abs(v)}${importance === v ? ' fq-imp-active' : ''}`}
+                onClick={() => setImp(v)}
+              >{v > 0 ? `+${v}` : v}</button>
+            ))}
+          </div>
+        </div>
         <div className="fq-edit-actions">
           <button className="btn fq-edit-discard" onClick={onClose}>Discard</button>
           <button
@@ -568,6 +603,9 @@ export default function CppFlashcardsV2() {
   const [editOpen, setEditOpen]           = useState(false)
   const [addOpen, setAddOpen]             = useState(false)
   const [browseMode, setBrowseMode]       = useState(false)
+  const [studyMode, setStudyMode]         = useState<StudyMode>('srs')
+  const [browseQueue, setBrowseQueue]     = useState<Flashcard[]>([])
+  const [browseIdx, setBrowseIdx]         = useState(0)
   // Tracks which card is being studied — prevents queue reshuffles from swapping the card mid-session
   const [currentCardId, setCurrentCardId] = useState<number | null>(null)
   const cloudSynced = useRef(false)
@@ -657,9 +695,10 @@ export default function CppFlashcardsV2() {
 
   // Apply overrides at display time only
   const cardRaw = queue.find(c => c.id === activeId) ?? null
-  const card = cardRaw && overrides[cardRaw.id]
-    ? { ...cardRaw, ...overrides[cardRaw.id] }
-    : cardRaw
+  const activeRaw = studyMode === 'srs' ? cardRaw : (browseQueue[browseIdx] ?? null)
+  const card = activeRaw && overrides[activeRaw.id]
+    ? { ...activeRaw, ...overrides[activeRaw.id] }
+    : activeRaw
   const bucket = card ? (progress[card.id]?.bucket ?? 0) : 0
   const cardImportance = card ? effImp(card, importanceMap) : 0
 
@@ -670,6 +709,33 @@ export default function CppFlashcardsV2() {
     setGraduated(0)
     setNotesOpen(false)
     setEditOpen(false)
+  }
+
+  function switchMode(mode: StudyMode) {
+    setStudyMode(mode)
+    setRevealed(false)
+    setBrowseIdx(0)
+  }
+
+  useEffect(() => {
+    if (studyMode === 'srs') return
+    const newQ = studyMode === 'shuffle'
+      ? [...cards].sort(() => Math.random() - 0.5)
+      : [...cards]
+    setBrowseQueue(newQ)
+    setBrowseIdx(0)
+  }, [studyMode, chapter, importanceFilter, lessonFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function browseNext() {
+    if (browseQueue.length === 0) return
+    setRevealed(false)
+    setBrowseIdx(i => (i + 1) % browseQueue.length)
+  }
+
+  function browsePrev() {
+    if (browseQueue.length === 0) return
+    setRevealed(false)
+    setBrowseIdx(i => (i - 1 + browseQueue.length) % browseQueue.length)
   }
 
   function rate(delta: number) {
@@ -689,13 +755,18 @@ export default function CppFlashcardsV2() {
     setEditOpen(false)
   }
 
-  // Keyboard shortcuts: Space = flip, 1–5 = rate(−2..+2)
+  // Keyboard shortcuts: Space = flip, 1–5 = rate (SRS), ArrowLeft/Right = browse nav
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
       if (e.key === ' ') {
         e.preventDefault()
         if (!revealed) setRevealed(true)
+        return
+      }
+      if (studyMode !== 'srs') {
+        if (e.key === 'ArrowRight') { e.preventDefault(); browseNext() }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); browsePrev() }
         return
       }
       if (!revealed || !card) return
@@ -720,7 +791,7 @@ export default function CppFlashcardsV2() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [revealed, card, bucket, progress])
+  }, [revealed, card, bucket, progress, studyMode, browseIdx, browseQueue])
 
   function exportData() {
     const data = {
@@ -763,19 +834,33 @@ export default function CppFlashcardsV2() {
     setGraveyard(newGraveyard)
     saveGraveyard(newGraveyard)
     if (user) saveToCloud(user.id, cloudState({ graveyard: [...newGraveyard] }))
-    setCurrentCardId(null)
+    if (studyMode !== 'srs') {
+      const newQ = browseQueue.filter(c => c.id !== card.id)
+      setBrowseQueue(newQ)
+      setBrowseIdx(i => Math.min(i, Math.max(0, newQ.length - 1)))
+    } else {
+      setCurrentCardId(null)
+      setGraduated(g => g + 1)
+    }
     setRevealed(false)
-    setGraduated(g => g + 1)
   }
 
-  function handleSaveNew(q: string, a: string) {
+  function handleSaveNew(q: string, a: string, importance: Importance) {
     const id  = Date.now()
     const ch  = chapter === 'all' ? (CHAPTERS[0] ?? '1') : chapter
     const newCard: Flashcard = { id, chapter: ch, topic: 'Custom', noteSection: '', q, a }
     const newCustoms = [...customs, newCard]
     setCustoms(newCustoms)
     saveCustomCards(newCustoms)
-    if (user) saveToCloud(user.id, cloudState({ custom: newCustoms }))
+    // Set importance
+    const newImpMap = { ...importanceMap, [id]: importance }
+    setImportanceMap(newImpMap)
+    saveImportance(newImpMap)
+    // Mark as seen + due immediately so it surfaces right away
+    const newProgress = { ...progress, [id]: { bucket: 0, nextReview: Date.now() } }
+    setProgress(newProgress)
+    saveProgress(newProgress)
+    if (user) saveToCloud(user.id, cloudState({ custom: newCustoms, importance: newImpMap }))
   }
 
   const totalSession = graduated + queue.length
@@ -815,7 +900,7 @@ export default function CppFlashcardsV2() {
       <header className="page-header">
         <div className="page-header-left">
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
-          <span className="page-header-title">C++ Quiz</span>
+          <span className="page-header-title">C++ Cards</span>
         </div>
       </header>
       <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '4rem 2rem' }}>Loading cards…</div>
@@ -830,15 +915,18 @@ export default function CppFlashcardsV2() {
       <header className="page-header">
         <div className="page-header-left">
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
-          <span className="page-header-title">C++ Quiz</span>
+          <span className="page-header-title">C++ Cards</span>
         </div>
         <HeaderRight options={close => (<>
-          {queue.length > 0 && !browseMode && (
+          {queue.length > 0 && !browseMode && studyMode === 'srs' && (
             <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
           )}
           <button className="header-toast-item" onClick={() => { close(); setBrowseMode(b => !b) }}>
             {browseMode ? 'Exit browse' : 'Browse all cards'}
           </button>
+          <button className="header-toast-item" onClick={() => { close(); switchMode('srs') }}>{studyMode === 'srs' ? '✓ ' : ''}SRS mode</button>
+          <button className="header-toast-item" onClick={() => { close(); switchMode('shuffle') }}>{studyMode === 'shuffle' ? '✓ ' : ''}Shuffle mode</button>
+          <button className="header-toast-item" onClick={() => { close(); switchMode('linear') }}>{studyMode === 'linear' ? '✓ ' : ''}Linear mode</button>
           <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
           <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
@@ -968,10 +1056,12 @@ export default function CppFlashcardsV2() {
           {/* Progress */}
           <div className="fq-progress">
             <div className="fq-progress-bar">
-              <div className="fq-progress-fill" style={{ width: `${progressPct}%` }} />
+              <div className="fq-progress-fill" style={{ width: studyMode === 'srs' ? `${progressPct}%` : `${browseQueue.length > 0 ? ((browseIdx + 1) / browseQueue.length) * 100 : 0}%` }} />
             </div>
             <div className="fq-progress-text">
-              {graduated} done · {queue.length} left
+              {studyMode === 'srs'
+                ? `${graduated} done · ${queue.length} left`
+                : `${browseIdx + 1} of ${browseQueue.length} · ${studyMode}`}
             </div>
           </div>
 
@@ -989,7 +1079,7 @@ export default function CppFlashcardsV2() {
                     )}
                   </div>
                   <CardText text={card.q} className="fq-q-text" />
-                  <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />
+                  {studyMode === 'srs' && <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />}
                 </div>
                 <div
                   className={`fq-card-a${revealed ? ' fq-card-a-revealed' : ''}`}
@@ -1025,32 +1115,38 @@ export default function CppFlashcardsV2() {
               </div>
             )}
 
-            {revealed && (
-              <div className="fq-bucket-status">
-                Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
+            {studyMode === 'srs' ? (<>
+              {revealed && (
+                <div className="fq-bucket-status">
+                  Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
+                </div>
+              )}
+              <div className="fq-ratings">
+                {([-2, -1, 0, 1, 2] as const).map((delta, i) => {
+                  const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
+                  const label = delta > 0 ? `+${delta}` : delta === 0 ? '=' : `${delta}`
+                  const colorClass = ['fq-rate-1','fq-rate-2','fq-rate-3','fq-rate-4','fq-rate-5'][i]
+                  return (
+                    <button
+                      key={delta}
+                      className={`fq-rate-btn ${colorClass}`}
+                      onClick={() => rate(delta)}
+                      disabled={!revealed}
+                      title={`Key ${i + 1}`}
+                    >
+                      <span className="fq-rate-delta">{label}</span>
+                      <span className="fq-rate-result">bkt {newBucket}</span>
+                      <span className="fq-rate-time">{formatInterval(bucketIntervalMs(newBucket))}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>) : (
+              <div className="fq-browse-nav">
+                <button className="btn fq-browse-btn" onClick={browsePrev}>← Prev</button>
+                <button className="btn btn-primary fq-browse-btn" onClick={browseNext}>Next →</button>
               </div>
             )}
-
-            <div className="fq-ratings">
-              {([-2, -1, 0, 1, 2] as const).map((delta, i) => {
-                const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
-                const label = delta > 0 ? `+${delta}` : delta === 0 ? '=' : `${delta}`
-                const colorClass = ['fq-rate-1','fq-rate-2','fq-rate-3','fq-rate-4','fq-rate-5'][i]
-                return (
-                  <button
-                    key={delta}
-                    className={`fq-rate-btn ${colorClass}`}
-                    onClick={() => rate(delta)}
-                    disabled={!revealed}
-                    title={`Key ${i + 1}`}
-                  >
-                    <span className="fq-rate-delta">{label}</span>
-                    <span className="fq-rate-result">bkt {newBucket}</span>
-                    <span className="fq-rate-time">{formatInterval(bucketIntervalMs(newBucket))}</span>
-                  </button>
-                )
-              })}
-            </div>
 
             <div className="fq-importance-selector">
               <span className="fq-importance-label">Importance</span>
@@ -1092,7 +1188,8 @@ export default function CppFlashcardsV2() {
         <EditSheet
           mode="new"
           chapter={chapter === 'all' ? (CHAPTERS[0] ?? '1') : chapter}
-          onSave={handleSaveNew}
+          onSave={() => {}}
+          onSaveNew={handleSaveNew}
           onClose={() => setAddOpen(false)}
         />
       )}
