@@ -1,0 +1,12 @@
+{
+  "name": "cpp-ingest",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.38.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.0",
+    "tsx": "^4.19.0"
+  }
+}

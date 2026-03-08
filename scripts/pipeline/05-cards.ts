@@ -141,7 +141,7 @@ async function processLesson(
   fewShot: string,
 ): Promise<{ cards: number; truncated: boolean; error?: string }> {
   // Delete existing cards for this lesson before re-generating
-  await db.from('cpp_flashcards_v3').delete().eq('lesson_id', lesson.id)
+  await db.from('cpp_flashcards').delete().eq('lesson_id', lesson.id)
 
   const { data, error: e } = await db
     .from('cpp_lessons')
@@ -186,7 +186,7 @@ async function processLesson(
       a:             c.a,
       importance:    typeof c.importance === 'number' ? Math.max(-2, Math.min(2, Math.round(c.importance))) : 0,
     }))
-    const { error: insErr } = await db.from('cpp_flashcards_v3').insert(rows)
+    const { error: insErr } = await db.from('cpp_flashcards').insert(rows)
     if (insErr) throw new Error(insErr.message)
   }
 

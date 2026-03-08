@@ -613,10 +613,10 @@ export default function CppFlashcardsV2() {
   const [currentCardId, setCurrentCardId] = useState<number | null>(null)
   const cloudSynced = useRef(false)
 
-  // ── Load cards from cpp_flashcards_v3 table ───────────────────
+  // ── Load cards from cpp_flashcards table ──────────────────────
   useEffect(() => {
     supabase
-      .from('cpp_flashcards_v3')
+      .from('cpp_flashcards')
       .select('id, chapter, lesson_number, lesson_title, topic, note_section, q, a, importance')
       .order('chapter', { ascending: true })
       .order('lesson_number', { ascending: true })

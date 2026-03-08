@@ -26,7 +26,7 @@ await runSQL(`
 console.log('✓ cpp_lessons table ready')
 
 await runSQL(`
-  CREATE TABLE IF NOT EXISTS cpp_flashcards_v3 (
+  CREATE TABLE IF NOT EXISTS cpp_flashcards (
     id             bigserial PRIMARY KEY,
     lesson_id      bigint REFERENCES cpp_lessons(id),
     chapter        text NOT NULL,
@@ -40,6 +40,6 @@ await runSQL(`
     created_at     timestamptz DEFAULT now()
   );
 `)
-console.log('✓ cpp_flashcards_v3 table ready')
+console.log('✓ cpp_flashcards table ready')
 
 console.log('\nSetup complete.')

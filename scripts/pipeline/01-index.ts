@@ -9,6 +9,18 @@ import { db } from './db.ts'
 
 const LEARNCPP_BASE = 'https://www.learncpp.com'
 
+function padChapter(ch: string): string {
+  return /^\d+$/.test(ch) ? ch.padStart(2, '0') : ch
+}
+
+function padLessonNumber(n: string): string {
+  const [ch, lesson] = n.split('.')
+  if (!lesson) return padChapter(ch)
+  const paddedCh     = /^\d+$/.test(ch)     ? ch.padStart(2, '0')     : ch
+  const paddedLesson = /^\d+$/.test(lesson) ? lesson.padStart(2, '0') : lesson  // 'x', 'y', etc. pass through unchanged
+  return `${paddedCh}.${paddedLesson}`
+}
+
 async function fetchHome(): Promise<string> {
   const res = await fetch(LEARNCPP_BASE, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; study-bot/1.0)' },
@@ -53,9 +65,9 @@ function parseTOC(html: string): LessonRow[] {
       seen.add(slug)
 
       const url     = href.startsWith('http') ? href : `${LEARNCPP_BASE}${href}`
-      const chapter = number.split('.')[0]
+      const chapter = padChapter(number.split('.')[0])
 
-      rows.push({ chapter, chapter_title: chapterTitle, lesson_number: number, lesson_title: title, slug, url })
+      rows.push({ chapter, chapter_title: chapterTitle, lesson_number: padLessonNumber(number), lesson_title: title, slug, url })
     })
   })
 
