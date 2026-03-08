@@ -18,6 +18,7 @@ const GRAVEYARD_KEY   = 'cpp-fc-graveyard'
 
 // importance: -2=very low, -1=low, 0=medium, 1=high, 2=very high
 export type Importance = -2 | -1 | 0 | 1 | 2
+type StudyMode = 'srs' | 'shuffle' | 'linear'
 type ImportanceMap = Record<number, Importance>
 
 export const IMPORTANCE_NAMES: Record<Importance, string> = {
@@ -585,6 +586,9 @@ export default function CppFlashcards() {
   const [addOpen, setAddOpen]             = useState(false)
   // Tracks which card is being studied — prevents queue reshuffles from swapping the card mid-session
   const [currentCardId, setCurrentCardId] = useState<number | null>(null)
+  const [studyMode, setStudyMode]         = useState<StudyMode>('srs')
+  const [browseQueue, setBrowseQueue]     = useState<Flashcard[]>([])
+  const [browseIdx, setBrowseIdx]         = useState(0)
   const cloudSynced = useRef(false)
 
   // ── Cloud sync ────────────────────────────────────────────────
@@ -636,9 +640,10 @@ export default function CppFlashcards() {
 
   // Apply overrides at display time only
   const cardRaw = queue.find(c => c.id === activeId) ?? null
-  const card = cardRaw && overrides[cardRaw.id]
-    ? { ...cardRaw, ...overrides[cardRaw.id] }
-    : cardRaw
+  const activeRaw = studyMode === 'srs' ? cardRaw : (browseQueue[browseIdx] ?? null)
+  const card = activeRaw && overrides[activeRaw.id]
+    ? { ...activeRaw, ...overrides[activeRaw.id] }
+    : activeRaw
   const bucket = card ? (progress[card.id]?.bucket ?? 0) : 0
   const cardImportance = card ? ((importanceMap[card.id] ?? 0) as Importance) : 0
 
@@ -648,6 +653,34 @@ export default function CppFlashcards() {
     setGraduated(0)
     setNotesOpen(false)
     setEditOpen(false)
+  }
+
+  function switchMode(mode: StudyMode) {
+    setStudyMode(mode)
+    setRevealed(false)
+    setBrowseIdx(0)
+  }
+
+  // Rebuild browse queue whenever mode or card list changes
+  useEffect(() => {
+    if (studyMode === 'srs') return
+    const newQ = studyMode === 'shuffle'
+      ? [...cards].sort(() => Math.random() - 0.5)
+      : [...cards]
+    setBrowseQueue(newQ)
+    setBrowseIdx(0)
+  }, [studyMode, chapter, importanceFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function browseNext() {
+    if (browseQueue.length === 0) return
+    setRevealed(false)
+    setBrowseIdx(i => (i + 1) % browseQueue.length)
+  }
+
+  function browsePrev() {
+    if (browseQueue.length === 0) return
+    setRevealed(false)
+    setBrowseIdx(i => (i - 1 + browseQueue.length) % browseQueue.length)
   }
 
   function rate(delta: number) {
@@ -667,13 +700,18 @@ export default function CppFlashcards() {
     setEditOpen(false)
   }
 
-  // Keyboard shortcuts: Space = flip, 1–5 = rate(−2..+2)
+  // Keyboard shortcuts: Space = flip, 1–5 = rate (SRS), ArrowLeft/Right = browse nav
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return
       if (e.key === ' ') {
         e.preventDefault()
         if (!revealed) setRevealed(true)
+        return
+      }
+      if (studyMode !== 'srs') {
+        if (e.key === 'ArrowRight') { e.preventDefault(); browseNext() }
+        if (e.key === 'ArrowLeft')  { e.preventDefault(); browsePrev() }
         return
       }
       if (!revealed || !card) return
@@ -698,7 +736,7 @@ export default function CppFlashcards() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [revealed, card, bucket, progress])
+  }, [revealed, card, bucket, progress, studyMode, browseIdx, browseQueue])
 
   function exportData() {
     const data = {
@@ -741,9 +779,15 @@ export default function CppFlashcards() {
     setGraveyard(newGraveyard)
     saveGraveyard(newGraveyard)
     if (user) saveToCloud(user.id, cloudState({ graveyard: [...newGraveyard] }))
-    setCurrentCardId(null)
+    if (studyMode !== 'srs') {
+      const newQ = browseQueue.filter(c => c.id !== card.id)
+      setBrowseQueue(newQ)
+      setBrowseIdx(i => Math.min(i, Math.max(0, newQ.length - 1)))
+    } else {
+      setCurrentCardId(null)
+      setGraduated(g => g + 1)
+    }
     setRevealed(false)
-    setGraduated(g => g + 1)
   }
 
   function handleSaveNew(q: string, a: string, importance: Importance) {
@@ -767,8 +811,8 @@ export default function CppFlashcards() {
   const totalSession = graduated + queue.length
   const progressPct  = totalSession > 0 ? (graduated / totalSession) * 100 : 0
 
-  // ── Empty queue ──────────────────────────────────────────────
-  if (queue.length === 0) {
+  // ── Empty queue (SRS only) ───────────────────────────────────
+  if (studyMode === 'srs' && queue.length === 0) {
     const next   = nextDueTs(progress, cards)
     const total  = cards.length
     const seen   = cards.filter(c => progress[c.id]).length
@@ -787,6 +831,9 @@ export default function CppFlashcards() {
           <HeaderRight options={close => (<>
             <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>New session</button>
             <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
+            <button className="header-toast-item" onClick={() => { close(); switchMode('srs') }}>{'✓ '}SRS mode</button>
+            <button className="header-toast-item" onClick={() => { close(); switchMode('shuffle') }}>{'  '}Shuffle mode</button>
+            <button className="header-toast-item" onClick={() => { close(); switchMode('linear') }}>{'  '}Linear mode</button>
             <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
             <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
           </>)} />
@@ -840,6 +887,9 @@ export default function CppFlashcards() {
         </div>
         <HeaderRight options={close => (<>
           <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
+          <button className="header-toast-item" onClick={() => { close(); switchMode('srs') }}>{studyMode === 'srs' ? '✓ ' : ''}SRS mode</button>
+          <button className="header-toast-item" onClick={() => { close(); switchMode('shuffle') }}>{studyMode === 'shuffle' ? '✓ ' : ''}Shuffle mode</button>
+          <button className="header-toast-item" onClick={() => { close(); switchMode('linear') }}>{studyMode === 'linear' ? '✓ ' : ''}Linear mode</button>
           <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
           {graveyard.size > 0 && (
@@ -889,10 +939,12 @@ export default function CppFlashcards() {
       {/* Progress */}
       <div className="fq-progress">
         <div className="fq-progress-bar">
-          <div className="fq-progress-fill" style={{ width: `${progressPct}%` }} />
+          <div className="fq-progress-fill" style={{ width: studyMode === 'srs' ? `${progressPct}%` : `${browseQueue.length > 0 ? ((browseIdx + 1) / browseQueue.length) * 100 : 0}%` }} />
         </div>
         <div className="fq-progress-text">
-          {graduated} done · {queue.length} left
+          {studyMode === 'srs'
+            ? `${graduated} done · ${queue.length} left`
+            : `${browseIdx + 1} of ${browseQueue.length} · ${studyMode}`}
         </div>
       </div>
 
@@ -912,7 +964,7 @@ export default function CppFlashcards() {
               )}
             </div>
             <CardText text={card.q} className="fq-q-text" />
-            <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />
+            {studyMode === 'srs' && <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />}
           </div>
 
           {/* Answer — click to reveal */}
@@ -953,32 +1005,40 @@ export default function CppFlashcards() {
           </div>
         )}
 
-        {/* Bucket status + rating buttons */}
-        {revealed && (
-          <div className="fq-bucket-status">
-            Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
+        {studyMode === 'srs' ? (<>
+          {/* Bucket status + rating buttons */}
+          {revealed && (
+            <div className="fq-bucket-status">
+              Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
+            </div>
+          )}
+          <div className="fq-ratings">
+            {([-2, -1, 0, 1, 2] as const).map((delta, i) => {
+              const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
+              const label = delta > 0 ? `+${delta}` : delta === 0 ? '=' : `${delta}`
+              const colorClass = ['fq-rate-1','fq-rate-2','fq-rate-3','fq-rate-4','fq-rate-5'][i]
+              return (
+                <button
+                  key={delta}
+                  className={`fq-rate-btn ${colorClass}`}
+                  onClick={() => rate(delta)}
+                  disabled={!revealed}
+                  title={`Key ${i + 1}`}
+                >
+                  <span className="fq-rate-delta">{label}</span>
+                  <span className="fq-rate-result">bkt {newBucket}</span>
+                  <span className="fq-rate-time">{formatInterval(bucketIntervalMs(newBucket))}</span>
+                </button>
+              )
+            })}
+          </div>
+        </>) : (
+          /* Browse mode nav */
+          <div className="fq-browse-nav">
+            <button className="btn fq-browse-btn" onClick={browsePrev}>← Prev</button>
+            <button className="btn btn-primary fq-browse-btn" onClick={browseNext}>Next →</button>
           </div>
         )}
-        <div className="fq-ratings">
-          {([-2, -1, 0, 1, 2] as const).map((delta, i) => {
-            const newBucket = Math.max(0, Math.min(MAX_BUCKET, bucket + delta))
-            const label = delta > 0 ? `+${delta}` : delta === 0 ? '=' : `${delta}`
-            const colorClass = ['fq-rate-1','fq-rate-2','fq-rate-3','fq-rate-4','fq-rate-5'][i]
-            return (
-              <button
-                key={delta}
-                className={`fq-rate-btn ${colorClass}`}
-                onClick={() => rate(delta)}
-                disabled={!revealed}
-                title={`Key ${i + 1}`}
-              >
-                <span className="fq-rate-delta">{label}</span>
-                <span className="fq-rate-result">bkt {newBucket}</span>
-                <span className="fq-rate-time">{formatInterval(bucketIntervalMs(newBucket))}</span>
-              </button>
-            )
-          })}
-        </div>
 
         {/* Importance selector */}
         {card && (
