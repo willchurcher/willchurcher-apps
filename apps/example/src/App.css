@@ -900,6 +900,32 @@ a { color: inherit; text-decoration: none; }
 
 .header-toast-item:active { background: var(--bg); }
 
+.header-toast-select-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.header-toast-select-label {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--muted-hi);
+  white-space: nowrap;
+}
+.header-toast-select {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-hi);
+  border-radius: 6px;
+  padding: 0.25rem 0.4rem;
+  cursor: pointer;
+}
+
 .header-toast-no-options {
   display: block;
   padding: 0.75rem 1rem;

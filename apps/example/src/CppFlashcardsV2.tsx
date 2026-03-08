@@ -21,7 +21,7 @@ const GRAVEYARD_KEY   = 'cpp-fc2-graveyard'
 
 // importance: -2=very low, -1=low, 0=medium, 1=high, 2=very high
 export type Importance = -2 | -1 | 0 | 1 | 2
-type StudyMode = 'srs' | 'shuffle' | 'linear'
+type StudyMode = 'scheduled' | 'shuffle' | 'linear'
 type ImportanceMap = Record<number, Importance>
 
 export const IMPORTANCE_NAMES: Record<Importance, string> = {
@@ -603,7 +603,7 @@ export default function CppFlashcardsV2() {
   const [editOpen, setEditOpen]           = useState(false)
   const [addOpen, setAddOpen]             = useState(false)
   const [browseMode, setBrowseMode]       = useState(false)
-  const [studyMode, setStudyMode]         = useState<StudyMode>('srs')
+  const [studyMode, setStudyMode]         = useState<StudyMode>('scheduled')
   const [browseQueue, setBrowseQueue]     = useState<Flashcard[]>([])
   const [browseIdx, setBrowseIdx]         = useState(0)
   // Tracks which card is being studied — prevents queue reshuffles from swapping the card mid-session
@@ -695,7 +695,7 @@ export default function CppFlashcardsV2() {
 
   // Apply overrides at display time only
   const cardRaw = queue.find(c => c.id === activeId) ?? null
-  const activeRaw = studyMode === 'srs' ? cardRaw : (browseQueue[browseIdx] ?? null)
+  const activeRaw = studyMode === 'scheduled' ? cardRaw : (browseQueue[browseIdx] ?? null)
   const card = activeRaw && overrides[activeRaw.id]
     ? { ...activeRaw, ...overrides[activeRaw.id] }
     : activeRaw
@@ -718,7 +718,7 @@ export default function CppFlashcardsV2() {
   }
 
   useEffect(() => {
-    if (studyMode === 'srs') return
+    if (studyMode === 'scheduled') return
     const newQ = studyMode === 'shuffle'
       ? [...cards].sort(() => Math.random() - 0.5)
       : [...cards]
@@ -764,7 +764,7 @@ export default function CppFlashcardsV2() {
         if (!revealed) setRevealed(true)
         return
       }
-      if (studyMode !== 'srs') {
+      if (studyMode !== 'scheduled') {
         if (e.key === 'ArrowRight') { e.preventDefault(); browseNext() }
         if (e.key === 'ArrowLeft')  { e.preventDefault(); browsePrev() }
         return
@@ -834,7 +834,7 @@ export default function CppFlashcardsV2() {
     setGraveyard(newGraveyard)
     saveGraveyard(newGraveyard)
     if (user) saveToCloud(user.id, cloudState({ graveyard: [...newGraveyard] }))
-    if (studyMode !== 'srs') {
+    if (studyMode !== 'scheduled') {
       const newQ = browseQueue.filter(c => c.id !== card.id)
       setBrowseQueue(newQ)
       setBrowseIdx(i => Math.min(i, Math.max(0, newQ.length - 1)))
@@ -918,15 +918,24 @@ export default function CppFlashcardsV2() {
           <span className="page-header-title">C++ Cards</span>
         </div>
         <HeaderRight options={close => (<>
-          {queue.length > 0 && !browseMode && studyMode === 'srs' && (
+          {queue.length > 0 && !browseMode && studyMode === 'scheduled' && (
             <button className="header-toast-item" onClick={() => { close(); changeChapter(chapter) }}>Restart session</button>
           )}
           <button className="header-toast-item" onClick={() => { close(); setBrowseMode(b => !b) }}>
             {browseMode ? 'Exit browse' : 'Browse all cards'}
           </button>
-          <button className="header-toast-item" onClick={() => { close(); switchMode('srs') }}>{studyMode === 'srs' ? '✓ ' : ''}SRS mode</button>
-          <button className="header-toast-item" onClick={() => { close(); switchMode('shuffle') }}>{studyMode === 'shuffle' ? '✓ ' : ''}Shuffle mode</button>
-          <button className="header-toast-item" onClick={() => { close(); switchMode('linear') }}>{studyMode === 'linear' ? '✓ ' : ''}Linear mode</button>
+          <div className="header-toast-select-row">
+            <span className="header-toast-select-label">Mode</span>
+            <select
+              className="header-toast-select"
+              value={studyMode}
+              onChange={e => switchMode(e.target.value as StudyMode)}
+            >
+              <option value="scheduled">Scheduled</option>
+              <option value="shuffle">Shuffle</option>
+              <option value="linear">Linear</option>
+            </select>
+          </div>
           <button className="header-toast-item" onClick={() => { close(); setAddOpen(true) }}>Add card</button>
           <button className="header-toast-item" onClick={() => { close(); exportData() }}>Export all data</button>
           <button className="header-toast-item" onClick={() => { close(); resetProgress() }}>Reset all progress</button>
@@ -1056,12 +1065,12 @@ export default function CppFlashcardsV2() {
           {/* Progress */}
           <div className="fq-progress">
             <div className="fq-progress-bar">
-              <div className="fq-progress-fill" style={{ width: studyMode === 'srs' ? `${progressPct}%` : `${browseQueue.length > 0 ? ((browseIdx + 1) / browseQueue.length) * 100 : 0}%` }} />
+              <div className="fq-progress-fill" style={{ width: studyMode === 'scheduled' ? `${progressPct}%` : `${browseQueue.length > 0 ? ((browseIdx + 1) / browseQueue.length) * 100 : 0}%` }} />
             </div>
             <div className="fq-progress-text">
-              {studyMode === 'srs'
+              {studyMode === 'scheduled'
                 ? `${graduated} done · ${queue.length} left`
-                : `${browseIdx + 1} of ${browseQueue.length} · ${studyMode}`}
+                : `${browseIdx + 1} of ${browseQueue.length} · ${studyMode === 'shuffle' ? 'shuffle' : 'linear'}`}
             </div>
           </div>
 
@@ -1079,7 +1088,7 @@ export default function CppFlashcardsV2() {
                     )}
                   </div>
                   <CardText text={card.q} className="fq-q-text" />
-                  {studyMode === 'srs' && <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />}
+                  {studyMode === 'scheduled' && <BucketBar bucket={bucket} nextReview={card ? progress[card.id]?.nextReview : undefined} />}
                 </div>
                 <div
                   className={`fq-card-a${revealed ? ' fq-card-a-revealed' : ''}`}
@@ -1115,7 +1124,7 @@ export default function CppFlashcardsV2() {
               </div>
             )}
 
-            {studyMode === 'srs' ? (<>
+            {studyMode === 'scheduled' ? (<>
               {revealed && (
                 <div className="fq-bucket-status">
                   Bucket {bucket} · next in {formatInterval(bucketIntervalMs(bucket, cardImportance))}
