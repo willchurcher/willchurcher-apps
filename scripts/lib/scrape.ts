@@ -30,7 +30,9 @@ function parseTOC(html: string, chapter: string): Lesson[] {
   const $ = load(html)
   const lessons: Lesson[] = []
   const seen = new Set<string>()
-  const prefix = `${chapter}.`
+  // learncpp uses unpadded numbers ("5.1" not "05.1"), so strip leading zeros for matching
+  const rawChapter = chapter.replace(/^0+/, '') || chapter
+  const prefix = `${rawChapter}.`
 
   // learncpp uses a .lessontable structure:
   //   .lessontable-row-number  → "1.1"

@@ -38,7 +38,10 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
 })
 
-const chapter = positionals[0]
+// Normalise to zero-padded two-digit chapter ("5" → "05", "A" stays "A")
+const chapter = /^\d+$/.test(positionals[0] ?? '')
+  ? (positionals[0] ?? '').padStart(2, '0')
+  : (positionals[0] ?? '')
 if (!chapter) {
   console.error(
     'Usage: npx tsx scripts/ingest-chapter.ts <chapter> [--from <stage>] [--force]\n' +
