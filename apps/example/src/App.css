@@ -2276,6 +2276,24 @@ a { color: inherit; text-decoration: none; }
 .fq-notes-md strong { color: var(--text); }
 .fq-notes-md em { color: var(--muted-hi); font-style: italic; }
 .fq-notes-md hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+.fq-notes-md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.78rem;
+}
+.fq-notes-md th, .fq-notes-md td {
+  border: 1px solid var(--border-hi);
+  padding: 0.4rem 0.65rem;
+  text-align: left;
+}
+.fq-notes-md th {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: normal;
+  letter-spacing: 0.05em;
+}
+.fq-notes-md tr:nth-child(even) td { background: color-mix(in srgb, var(--surface) 50%, transparent); }
 
 /* ── Edit sheet ─────────────────────────────────────────── */
 .fq-edit-sheet {

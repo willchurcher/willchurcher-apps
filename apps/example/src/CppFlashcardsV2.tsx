@@ -589,13 +589,16 @@ export default function CppFlashcardsV2() {
   const { user } = useAuth()
   const [allCards, setAllCards]           = useState<FlashcardV2[]>([])
   const [cardsLoading, setCardsLoading]   = useState(true)
-  const [chapter, setChapter]             = useState('all')
+  const [chapter, setChapter]             = useState(() => localStorage.getItem('cpp-fc2-chapter') ?? 'all')
   const [progress, setProgress]           = useState<ProgressMap>(loadProgress)
   const [overrides, setOverrides]         = useState<OverridesMap>(loadOverrides)
   const [customs, setCustoms]             = useState<Flashcard[]>(loadCustomCards)
   const [importanceMap, setImportanceMap] = useState<ImportanceMap>(loadImportance)
-  const [importanceFilter, setImpFilter]  = useState<Importance | 'all'>('all')
-  const [lessonFilter, setLessonFilter]   = useState<string>('all')
+  const [importanceFilter, setImpFilter]  = useState<Importance | 'all'>(() => {
+    const v = localStorage.getItem('cpp-fc2-imp-filter')
+    return (v == null || v === 'all') ? 'all' : Number(v) as Importance
+  })
+  const [lessonFilter, setLessonFilter]   = useState<string>(() => localStorage.getItem('cpp-fc2-lesson-filter') ?? 'all')
   const [graveyard, setGraveyard]         = useState<Set<number>>(loadGraveyard)
   const [revealed, setRevealed]           = useState(false)
   const [graduated, setGraduated]         = useState(0)
@@ -603,7 +606,7 @@ export default function CppFlashcardsV2() {
   const [editOpen, setEditOpen]           = useState(false)
   const [addOpen, setAddOpen]             = useState(false)
   const [browseMode, setBrowseMode]       = useState(false)
-  const [studyMode, setStudyMode]         = useState<StudyMode>('scheduled')
+  const [studyMode, setStudyMode]         = useState<StudyMode>(() => (localStorage.getItem('cpp-fc2-study-mode') as StudyMode) ?? 'scheduled')
   const [browseQueue, setBrowseQueue]     = useState<Flashcard[]>([])
   const [browseIdx, setBrowseIdx]         = useState(0)
   // Tracks which card is being studied — prevents queue reshuffles from swapping the card mid-session
@@ -704,7 +707,9 @@ export default function CppFlashcardsV2() {
 
   function changeChapter(ch: string) {
     setChapter(ch)
+    localStorage.setItem('cpp-fc2-chapter', ch)
     setLessonFilter('all')
+    localStorage.setItem('cpp-fc2-lesson-filter', 'all')
     setRevealed(false)
     setGraduated(0)
     setNotesOpen(false)
@@ -713,6 +718,7 @@ export default function CppFlashcardsV2() {
 
   function switchMode(mode: StudyMode) {
     setStudyMode(mode)
+    localStorage.setItem('cpp-fc2-study-mode', mode)
     setRevealed(false)
     setBrowseIdx(0)
   }
@@ -966,6 +972,7 @@ export default function CppFlashcardsV2() {
           onChange={e => {
             const v = e.target.value
             setImpFilter(v === 'all' ? 'all' : Number(v) as Importance)
+            localStorage.setItem('cpp-fc2-imp-filter', v)
             setRevealed(false)
             setGraduated(0)
             setCurrentCardId(null)
@@ -982,6 +989,7 @@ export default function CppFlashcardsV2() {
             value={lessonFilter}
             onChange={e => {
               setLessonFilter(e.target.value)
+              localStorage.setItem('cpp-fc2-lesson-filter', e.target.value)
               setRevealed(false)
               setGraduated(0)
               setCurrentCardId(null)
