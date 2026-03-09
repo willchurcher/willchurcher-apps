@@ -613,31 +613,39 @@ export default function CppFlashcardsV2() {
   const [currentCardId, setCurrentCardId] = useState<number | null>(null)
   const cloudSynced = useRef(false)
 
-  // ── Load cards from cpp_flashcards table ──────────────────────
+  // ── Load cards from cpp_flashcards table (paginated) ──────────
   useEffect(() => {
-    supabase
-      .from('cpp_flashcards')
-      .select('id, chapter, lesson_number, lesson_title, topic, note_section, q, a, importance')
-      .order('chapter', { ascending: true })
-      .order('lesson_number', { ascending: true })
-      .order('id', { ascending: true })
-      .limit(10000)
-      .then(({ data }) => {
-        if (data) {
-          setAllCards(data.map(row => ({
-            id: row.id,
-            chapter: row.chapter,
-            lesson: row.lesson_number ?? '',
-            lessonTitle: row.lesson_title ?? '',
-            topic: row.topic,
-            noteSection: row.note_section,
-            q: row.q,
-            a: row.a,
-            baseImportance: row.importance ?? 0,
-          })))
-        }
-        setCardsLoading(false)
-      })
+    async function fetchAllCards() {
+      const PAGE = 1000
+      let offset = 0
+      const all: typeof allCards = []
+      while (true) {
+        const { data, error } = await supabase
+          .from('cpp_flashcards')
+          .select('id, chapter, lesson_number, lesson_title, topic, note_section, q, a, importance')
+          .order('chapter', { ascending: true })
+          .order('lesson_number', { ascending: true })
+          .order('id', { ascending: true })
+          .range(offset, offset + PAGE - 1)
+        if (error || !data || data.length === 0) break
+        all.push(...data.map(row => ({
+          id: row.id,
+          chapter: row.chapter,
+          lesson: row.lesson_number ?? '',
+          lessonTitle: row.lesson_title ?? '',
+          topic: row.topic,
+          noteSection: row.note_section,
+          q: row.q,
+          a: row.a,
+          baseImportance: row.importance ?? 0,
+        })))
+        if (data.length < PAGE) break
+        offset += PAGE
+      }
+      setAllCards(all)
+      setCardsLoading(false)
+    }
+    fetchAllCards()
   }, [])
 
   const CHAPTERS = [...new Set(allCards.map(c => c.chapter))].sort((a, b) =>
