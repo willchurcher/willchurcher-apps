@@ -4,6 +4,97 @@ import { marked } from 'marked'
 import { HeaderRight } from './HeaderRight'
 import { supabase } from './supabase'
 
+async function fetchNotesHtml(chapterFilter: string | null): Promise<{ title: string; html: string }[]> {
+  let query = supabase
+    .from('cpp_lessons')
+    .select('chapter, chapter_title, lesson_number, lesson_title, formatted_notes')
+    .not('formatted_notes', 'is', null)
+    .order('chapter', { ascending: true })
+    .order('lesson_number', { ascending: true })
+  if (chapterFilter) query = query.eq('chapter', chapterFilter)
+  const { data } = await query
+  return (data ?? []).map(l => ({
+    title: `${l.lesson_number} — ${l.lesson_title}`,
+    html: marked(l.formatted_notes!) as string,
+  }))
+}
+
+async function openPdfWindow(chapterFilter: string | null, windowTitle: string) {
+  const lessons = await fetchNotesHtml(chapterFilter)
+  if (!lessons.length) { alert('No notes available to export.'); return }
+
+  const body = lessons.map(l => `
+    <section class="lesson">
+      <div class="lesson-content">${l.html}</div>
+    </section>
+  `).join('\n')
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${windowTitle}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Georgia', serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #111;
+    background: white;
+    padding: 2cm;
+  }
+  h1 { font-size: 1.6em; margin: 1.2em 0 0.5em; page-break-after: avoid; }
+  h2 { font-size: 1.25em; margin: 1em 0 0.4em; page-break-after: avoid; }
+  h3 { font-size: 1.05em; margin: 0.8em 0 0.3em; page-break-after: avoid; }
+  p { margin: 0.5em 0; }
+  ul, ol { margin: 0.5em 0 0.5em 1.5em; }
+  li { margin: 0.25em 0; }
+  code {
+    font-family: 'Courier New', monospace;
+    font-size: 0.88em;
+    background: #f4f4f4;
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  pre {
+    background: #f4f4f4;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.75em 1em;
+    overflow-x: auto;
+    margin: 0.75em 0;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; padding: 0; font-size: 0.85em; }
+  blockquote {
+    border-left: 3px solid #888;
+    padding: 0.4em 0.75em;
+    margin: 0.75em 0;
+    color: #444;
+    background: #fafafa;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 0.75em 0; }
+  th, td { border: 1px solid #ccc; padding: 0.4em 0.6em; text-align: left; }
+  th { background: #eee; }
+  .lesson { page-break-before: always; }
+  .lesson:first-child { page-break-before: avoid; }
+  @media print {
+    body { padding: 0; }
+  }
+</style>
+</head>
+<body>${body}</body>
+</html>`
+
+  const w = window.open('', '_blank')
+  if (!w) { alert('Pop-up blocked — please allow pop-ups for this site.'); return }
+  w.document.write(html)
+  w.document.close()
+  w.focus()
+  setTimeout(() => w.print(), 400)
+}
+
 interface Lesson {
   id: number
   chapter: string
@@ -77,9 +168,16 @@ function PipelineStatus({ lesson }: { lesson: Lesson }) {
 function NotesView({ lesson, onBack }: { lesson: LessonDetail; onBack: () => void }) {
   const navigate = useNavigate()
   const [showRaw, setShowRaw] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const content = lesson.formatted_notes ?? lesson.clean_text
   const html = content ? marked(content) as string : null
+
+  async function handleDownload() {
+    setExporting(true)
+    await openPdfWindow(lesson.chapter, `Ch.${lesson.chapter} — C++ Notes`)
+    setExporting(false)
+  }
 
   return (
     <div className="page">
@@ -94,6 +192,9 @@ function NotesView({ lesson, onBack }: { lesson: LessonDetail; onBack: () => voi
           <>
             <button className="header-toast-item" onClick={() => { close(); setShowRaw(r => !r) }}>
               {showRaw ? 'Show rendered' : 'Show raw markdown'}
+            </button>
+            <button className="header-toast-item" onClick={() => { close(); handleDownload() }} disabled={exporting}>
+              {exporting ? 'Preparing…' : 'Download chapter PDF'}
             </button>
             <button className="header-toast-item" onClick={() => { close(); navigate('/') }}>Home</button>
           </>
@@ -141,6 +242,13 @@ export default function CppNotes() {
   const [chapter, setChapter]           = useState('all')
   const [selected, setSelected]         = useState<LessonDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [exporting, setExporting]       = useState(false)
+
+  async function handleDownload(chapterFilter: string | null, label: string) {
+    setExporting(true)
+    await openPdfWindow(chapterFilter, label)
+    setExporting(false)
+  }
 
   useEffect(() => {
     supabase
@@ -194,9 +302,29 @@ export default function CppNotes() {
           <span className="page-header-title">C++ Notes</span>
         </div>
         <HeaderRight options={close => (
-          <button className="header-toast-item" onClick={() => { close(); navigate('/cpp-ch1') }}>
-            Open Quiz
-          </button>
+          <>
+            <button className="header-toast-item" onClick={() => { close(); navigate('/cpp-ch1') }}>
+              Open Quiz
+            </button>
+            <button
+              className="header-toast-item"
+              disabled={exporting || chapter === 'all'}
+              onClick={() => {
+                close()
+                const chTitles = chapterTitleMap(lessons)
+                handleDownload(chapter, `Ch.${chapter} — ${chTitles[chapter] ?? 'C++'} Notes`)
+              }}
+            >
+              {exporting ? 'Preparing…' : 'Download chapter PDF'}
+            </button>
+            <button
+              className="header-toast-item"
+              disabled={exporting}
+              onClick={() => { close(); handleDownload(null, 'C++ Notes — All Chapters') }}
+            >
+              {exporting ? 'Preparing…' : 'Download all chapters PDF'}
+            </button>
+          </>
         )} />
       </header>
 

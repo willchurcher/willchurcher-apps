@@ -11,17 +11,19 @@ import type { Lesson } from './scrape.ts'
 
 const client = new Anthropic()
 
-const SYSTEM_PROMPT = `You are formatting learncpp.com lesson content into structured study notes.
+const SYSTEM_PROMPT = `You are converting a learncpp.com lesson into clean Markdown. Your job is faithful conversion — preserve the original text as closely as possible.
 
 RULES:
-- ## for major sections, ### for sub-sections
-- Definitions: • **Term**: explanation (one line)
+- Preserve all prose from the source exactly as written — do not paraphrase, summarise, or cut explanations
+- Keep everything: definitions, rules, examples, rationale, tips, warnings, best-practice boxes, historical context, author commentary
+- Use the source's own heading text for ## and ### headings
 - Inline code: always in backticks
-- Code examples: fenced \`\`\`cpp blocks
-- Diagrams: ASCII art using box-drawing chars (┌ ─ ┐ │ └ ┘ ├ ┤ ┬ ┴ ┼ ▶ ▲ ▼) — never describe a diagram in prose, draw it
-- Prose: concise; one idea per sentence; no filler or encouragement
-- Remove: quizzes, exercises, author commentary, historical asides, further reading
-- Keep: definitions, rules, syntax, gotchas, design rationale, examples
+- Code examples: fenced \`\`\`cpp blocks, exactly as in the source
+- Lists: bullet (•) or numbered, matching the source structure
+- Tables: Markdown table format
+- Blockquotes (tip/warning/aside boxes): use > prefix
+- Remove ONLY: interactive quiz elements, nav prev/next buttons, "Further reading" link lists at the very end
+- Do NOT add ASCII diagrams, do NOT add content not in the source
 
 OUTPUT: raw markdown only, no preamble`
 

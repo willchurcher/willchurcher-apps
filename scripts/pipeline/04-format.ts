@@ -20,21 +20,20 @@ const { values } = parseArgs({
 
 const client = new Anthropic()
 
-const SYSTEM_PROMPT = `You are converting a learncpp.com lesson into clean, structured study notes.
+const SYSTEM_PROMPT = `You are converting a learncpp.com lesson into clean Markdown. Your job is faithful conversion — preserve the original text as closely as possible.
 
 RULES:
 - Start with: # {lesson_number} — {lesson_title}
-- ## for major sections (use the actual section names from the source)
-- ### for sub-sections
-- Definitions: • **Term**: explanation (one line each)
+- Preserve all prose from the source exactly as written — do not paraphrase, summarise, or cut explanations
+- Keep everything: definitions, rules, examples, rationale, tips, warnings, best-practice boxes, historical context, author commentary
+- Use the source's own heading text for ## and ### headings
 - Inline code: always in backticks — \`int\`, \`nullptr\`, \`std::vector\`
-- Code examples: fenced \`\`\`cpp blocks, keep them concise
-- Diagrams: ASCII art using box-drawing chars (┌ ─ ┐ │ └ ┘ ├ ┤ ┬ ┴ ┼ ▶ ▲ ▼)
-  - Any time the source describes a diagram, memory layout, flow, or relationship — draw it in ASCII
-  - Never write "the diagram above shows..." — draw the thing
-- Prose: concise; one idea per sentence; no filler or encouragement
-- Remove: quizzes, exercises, author commentary, "in summary" sections, further reading links
-- Keep: definitions, rules, syntax, gotchas, design rationale, worked examples
+- Code examples: fenced \`\`\`cpp blocks, exactly as in the source
+- Lists: bullet (•) or numbered, matching the source structure
+- Tables: Markdown table format
+- Blockquotes (tip/warning/aside boxes): use > prefix
+- Remove ONLY: interactive quiz elements, nav prev/next buttons, "Further reading" link lists at the very end
+- Do NOT add ASCII diagrams, do NOT add content not in the source
 
 OUTPUT: raw markdown only — no preamble, no "here are the notes"`
 
