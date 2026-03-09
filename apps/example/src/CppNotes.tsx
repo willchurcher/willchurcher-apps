@@ -105,6 +105,7 @@ export default function CppNotes() {
         <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 0' }}>
           {chapters.map(([ch, title]) => {
             const available = pdfAvailable[ch]
+            const greyed = available === false
             return (
               <div
                 key={ch}
@@ -114,6 +115,7 @@ export default function CppNotes() {
                   justifyContent: 'space-between',
                   borderBottom: '1px solid var(--border)',
                   padding: '0.85rem 1rem',
+                  opacity: greyed ? 0.4 : 1,
                 }}
               >
                 <div>
@@ -152,16 +154,7 @@ export default function CppNotes() {
                   >
                     ⬇ PDF
                   </a>
-                ) : (
-                  <span style={{
-                    fontSize: '0.7rem',
-                    color: 'var(--muted)',
-                    fontFamily: 'var(--font-mono)',
-                    flexShrink: 0,
-                  }}>
-                    no pdf
-                  </span>
-                )}
+                ) : null}
               </div>
             )
           })}
