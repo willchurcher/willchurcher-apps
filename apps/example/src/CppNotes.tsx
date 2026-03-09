@@ -54,7 +54,10 @@ export default function CppNotes() {
     setPdfAvailable({})
     chapters.forEach(([ch]) => {
       fetch(pdfUrl(ch, pdfFont), { method: 'HEAD' })
-        .then(r => setPdfAvailable(prev => ({ ...prev, [ch]: r.ok })))
+        .then(r => {
+          const ct = r.headers.get('Content-Type') ?? ''
+          setPdfAvailable(prev => ({ ...prev, [ch]: ct.includes('pdf') }))
+        })
         .catch(() => setPdfAvailable(prev => ({ ...prev, [ch]: false })))
     })
   }, [chapters, pdfFont])
