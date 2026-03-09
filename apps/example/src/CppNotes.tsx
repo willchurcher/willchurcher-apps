@@ -19,40 +19,26 @@ async function fetchNotesHtml(chapterFilter: string | null): Promise<{ title: st
   }))
 }
 
-async function openPdfWindow(chapterFilter: string | null, windowTitle: string) {
-  const lessons = await fetchNotesHtml(chapterFilter)
-  if (!lessons.length) { alert('No notes available to export.'); return }
-
-  const body = lessons.map(l => `
-    <section class="lesson">
-      <div class="lesson-content">${l.html}</div>
-    </section>
-  `).join('\n')
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>${windowTitle}</title>
-<style>
+const PDF_CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Georgia', serif;
-    font-size: 11pt;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.65;
     color: #111;
     background: white;
-    padding: 2cm;
+    padding: 32px;
+    width: 750px;
   }
-  h1 { font-size: 1.6em; margin: 1.2em 0 0.5em; page-break-after: avoid; }
-  h2 { font-size: 1.25em; margin: 1em 0 0.4em; page-break-after: avoid; }
-  h3 { font-size: 1.05em; margin: 0.8em 0 0.3em; page-break-after: avoid; }
+  h1 { font-size: 1.5em; margin: 1.2em 0 0.5em; }
+  h2 { font-size: 1.2em; margin: 1em 0 0.4em; }
+  h3 { font-size: 1.05em; margin: 0.8em 0 0.3em; }
   p { margin: 0.5em 0; }
   ul, ol { margin: 0.5em 0 0.5em 1.5em; }
   li { margin: 0.25em 0; }
   code {
     font-family: 'Courier New', monospace;
-    font-size: 0.88em;
+    font-size: 0.85em;
     background: #f4f4f4;
     padding: 1px 4px;
     border-radius: 3px;
@@ -62,11 +48,11 @@ async function openPdfWindow(chapterFilter: string | null, windowTitle: string) 
     border: 1px solid #ddd;
     border-radius: 4px;
     padding: 0.75em 1em;
-    overflow-x: auto;
     margin: 0.75em 0;
-    page-break-inside: avoid;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
-  pre code { background: none; padding: 0; font-size: 0.85em; }
+  pre code { background: none; padding: 0; font-size: 0.82em; }
   blockquote {
     border-left: 3px solid #888;
     padding: 0.4em 0.75em;
@@ -77,22 +63,57 @@ async function openPdfWindow(chapterFilter: string | null, windowTitle: string) 
   table { border-collapse: collapse; width: 100%; margin: 0.75em 0; }
   th, td { border: 1px solid #ccc; padding: 0.4em 0.6em; text-align: left; }
   th { background: #eee; }
-  .lesson { page-break-before: always; }
-  .lesson:first-child { page-break-before: avoid; }
-  @media print {
-    body { padding: 0; }
-  }
-</style>
-</head>
-<body>${body}</body>
-</html>`
+  hr { border: none; border-top: 1px solid #ddd; margin: 1.5em 0; }
+`
 
-  const w = window.open('', '_blank')
-  if (!w) { alert('Pop-up blocked — please allow pop-ups for this site.'); return }
-  w.document.write(html)
-  w.document.close()
-  w.focus()
-  setTimeout(() => w.print(), 400)
+async function downloadPdf(chapterFilter: string | null, filename: string) {
+  const lessons = await fetchNotesHtml(chapterFilter)
+  if (!lessons.length) { alert('No notes available to export.'); return }
+
+  const { default: jsPDF } = await import('jspdf')
+  const { default: html2canvas } = await import('html2canvas')
+
+  const body = lessons.map(l => `<div class="lesson">${l.html}</div>`).join('<hr/>')
+
+  // Render into a hidden off-screen div
+  const container = document.createElement('div')
+  container.style.cssText = 'position:fixed;top:-99999px;left:0;width:750px;background:white;'
+  const style = document.createElement('style')
+  style.textContent = PDF_CSS
+  container.appendChild(style)
+  const content = document.createElement('div')
+  content.innerHTML = body
+  container.appendChild(content)
+  document.body.appendChild(container)
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      width: 750,
+    })
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.92)
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const pageW = pdf.internal.pageSize.getWidth()
+    const pageH = pdf.internal.pageSize.getHeight()
+    const imgW = pageW
+    const imgH = (canvas.height / canvas.width) * imgW
+    let y = 0
+    let remaining = imgH
+
+    while (remaining > 0) {
+      if (y > 0) pdf.addPage()
+      pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH)
+      y += pageH
+      remaining -= pageH
+    }
+
+    pdf.save(filename)
+  } finally {
+    document.body.removeChild(container)
+  }
 }
 
 interface Lesson {
@@ -175,7 +196,7 @@ function NotesView({ lesson, onBack }: { lesson: LessonDetail; onBack: () => voi
 
   async function handleDownload() {
     setExporting(true)
-    await openPdfWindow(lesson.chapter, `Ch.${lesson.chapter} — C++ Notes`)
+    await downloadPdf(lesson.chapter, `cpp-chapter-${lesson.chapter}-notes.pdf`)
     setExporting(false)
   }
 
@@ -246,7 +267,7 @@ export default function CppNotes() {
 
   async function handleDownload(chapterFilter: string | null, label: string) {
     setExporting(true)
-    await openPdfWindow(chapterFilter, label)
+    await downloadPdf(chapterFilter, label.toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".pdf")
     setExporting(false)
   }
 
