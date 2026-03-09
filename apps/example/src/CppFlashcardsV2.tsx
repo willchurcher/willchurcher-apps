@@ -621,6 +621,7 @@ export default function CppFlashcardsV2() {
       .order('chapter', { ascending: true })
       .order('lesson_number', { ascending: true })
       .order('id', { ascending: true })
+      .limit(10000)
       .then(({ data }) => {
         if (data) {
           setAllCards(data.map(row => ({
