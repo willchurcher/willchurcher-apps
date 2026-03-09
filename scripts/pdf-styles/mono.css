@@ -1,0 +1,6 @@
+@import "base.css";
+body { font-family: 'Ubuntu', 'DejaVu Sans', sans-serif; }
+h1, h2, h3 { font-family: 'Ubuntu', 'DejaVu Sans', sans-serif; font-weight: bold; }
+code { font-family: 'Ubuntu Mono', 'DejaVu Sans Mono', monospace; }
+pre { font-family: 'Ubuntu Mono', 'DejaVu Sans Mono', monospace; }
+pre code { font-family: inherit; }

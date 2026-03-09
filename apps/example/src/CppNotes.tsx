@@ -75,7 +75,7 @@ function PipelineStatus({ lesson }: { lesson: Lesson }) {
   )
 }
 
-function NotesView({ lesson, onBack }: { lesson: LessonDetail; onBack: () => void }) {
+function NotesView({ lesson, onBack, pdfFont }: { lesson: LessonDetail; onBack: () => void; pdfFont: PdfFont }) {
   const navigate = useNavigate()
   const [showRaw, setShowRaw] = useState(false)
 
@@ -98,7 +98,7 @@ function NotesView({ lesson, onBack }: { lesson: LessonDetail; onBack: () => voi
             </button>
             <a
               className="header-toast-item"
-              href={`/pdfs/cpp-chapter-${lesson.chapter.padStart(2, '0')}.pdf`}
+              href={`/pdfs/cpp-chapter-${lesson.chapter.padStart(2, '0')}-${pdfFont}.pdf`}
               download
               onClick={() => close()}
               style={{ textDecoration: 'none', display: 'block' }}
@@ -144,6 +144,9 @@ function NotesView({ lesson, onBack }: { lesson: LessonDetail; onBack: () => voi
   )
 }
 
+type PdfFont = 'serif' | 'sans' | 'mono'
+const FONT_LABELS: Record<PdfFont, string> = { serif: 'Serif', sans: 'Sans', mono: 'Ubuntu Mono' }
+
 export default function CppNotes() {
   const navigate = useNavigate()
   const [lessons, setLessons]           = useState<Lesson[]>([])
@@ -151,6 +154,14 @@ export default function CppNotes() {
   const [chapter, setChapter]           = useState('all')
   const [selected, setSelected]         = useState<LessonDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [pdfFont, setPdfFont]           = useState<PdfFont>(
+    () => (localStorage.getItem('cpp-pdf-font') as PdfFont) ?? 'serif'
+  )
+
+  function setFont(f: PdfFont) {
+    setPdfFont(f)
+    localStorage.setItem('cpp-pdf-font', f)
+  }
 
   useEffect(() => {
     supabase
@@ -193,7 +204,7 @@ export default function CppNotes() {
   }
 
   if (selected) {
-    return <NotesView lesson={selected} onBack={() => setSelected(null)} />
+    return <NotesView lesson={selected} onBack={() => setSelected(null)} pdfFont={pdfFont} />
   }
 
   return (
@@ -208,10 +219,32 @@ export default function CppNotes() {
             <button className="header-toast-item" onClick={() => { close(); navigate('/cpp-ch1') }}>
               Open Quiz
             </button>
+            <div className="header-toast-item" style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.4rem', marginBottom: '0.1rem' }}>
+              <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>PDF FONT</div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                {(Object.keys(FONT_LABELS) as PdfFont[]).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setFont(f)}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      border: '1px solid var(--border)',
+                      background: pdfFont === f ? 'var(--accent)' : 'var(--surface)',
+                      color: pdfFont === f ? 'var(--bg)' : 'var(--text)',
+                      fontSize: '0.7rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {FONT_LABELS[f]}
+                  </button>
+                ))}
+              </div>
+            </div>
             {chapter !== 'all' && (
               <a
                 className="header-toast-item"
-                href={`/pdfs/cpp-chapter-${chapter.padStart(2, '0')}.pdf`}
+                href={`/pdfs/cpp-chapter-${chapter.padStart(2, '0')}-${pdfFont}.pdf`}
                 download
                 onClick={() => close()}
                 style={{ textDecoration: 'none', display: 'block' }}
