@@ -66,54 +66,33 @@ const PDF_CSS = `
   hr { border: none; border-top: 1px solid #ddd; margin: 1.5em 0; }
 `
 
-async function downloadPdf(chapterFilter: string | null, filename: string) {
+async function openPrintWindow(chapterFilter: string | null, title: string) {
   const lessons = await fetchNotesHtml(chapterFilter)
   if (!lessons.length) { alert('No notes available to export.'); return }
 
-  const { default: jsPDF } = await import('jspdf')
-  const { default: html2canvas } = await import('html2canvas')
+  const body = lessons.map(l => `<section class="lesson">${l.html}</section>`).join('\n')
 
-  const body = lessons.map(l => `<div class="lesson">${l.html}</div>`).join('<hr/>')
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+${PDF_CSS}
+  .lesson { page-break-before: always; }
+  .lesson:first-child { page-break-before: avoid; }
+  @media print { body { padding: 0; width: auto; } }
+</style>
+</head>
+<body>${body}</body>
+</html>`
 
-  // Render into a hidden off-screen div
-  const container = document.createElement('div')
-  container.style.cssText = 'position:fixed;top:-99999px;left:0;width:750px;background:white;'
-  const style = document.createElement('style')
-  style.textContent = PDF_CSS
-  container.appendChild(style)
-  const content = document.createElement('div')
-  content.innerHTML = body
-  container.appendChild(content)
-  document.body.appendChild(container)
-
-  try {
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      width: 750,
-    })
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.92)
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const pageW = pdf.internal.pageSize.getWidth()
-    const pageH = pdf.internal.pageSize.getHeight()
-    const imgW = pageW
-    const imgH = (canvas.height / canvas.width) * imgW
-    let y = 0
-    let remaining = imgH
-
-    while (remaining > 0) {
-      if (y > 0) pdf.addPage()
-      pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH)
-      y += pageH
-      remaining -= pageH
-    }
-
-    pdf.save(filename)
-  } finally {
-    document.body.removeChild(container)
-  }
+  const w = window.open('', '_blank')
+  if (!w) { alert('Pop-up blocked — allow pop-ups for this site, then try again.'); return }
+  w.document.write(html)
+  w.document.close()
+  w.focus()
+  setTimeout(() => w.print(), 500)
 }
 
 interface Lesson {
@@ -196,7 +175,7 @@ function NotesView({ lesson, onBack }: { lesson: LessonDetail; onBack: () => voi
 
   async function handleDownload() {
     setExporting(true)
-    await downloadPdf(lesson.chapter, `cpp-chapter-${lesson.chapter}-notes.pdf`)
+    await openPrintWindow(lesson.chapter, `C++ Chapter ${lesson.chapter} Notes`)
     setExporting(false)
   }
 
@@ -267,7 +246,7 @@ export default function CppNotes() {
 
   async function handleDownload(chapterFilter: string | null, label: string) {
     setExporting(true)
-    await downloadPdf(chapterFilter, label.toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".pdf")
+    await openPrintWindow(chapterFilter, label)
     setExporting(false)
   }
 
