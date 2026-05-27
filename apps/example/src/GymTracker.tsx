@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HeaderRight } from './HeaderRight'
+import BodyMap from './BodyMap'
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -646,7 +647,7 @@ function HistoryTab({ sessions }: { sessions: Session[] }) {
 
 export default function GymTracker() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'log' | 'tests' | 'history'>('tests')
+  const [tab, setTab] = useState<'log' | 'tests' | 'body' | 'history'>('body')
   const [scores, setScores] = useState<TestScore[]>(() => load<TestScore[]>(SCORES_KEY, []))
   const [sessions, setSessions] = useState<Session[]>(() => load<Session[]>(SESSIONS_KEY, []))
 
@@ -661,8 +662,9 @@ export default function GymTracker() {
   }
 
   const TABS = [
-    { id: 'log' as const, label: 'LOG', icon: '🏋' },
+    { id: 'log' as const,  label: 'LOG',    icon: '🏋' },
     { id: 'tests' as const, label: 'TESTS', icon: '◎' },
+    { id: 'body' as const, label: 'BODY',   icon: '⬡' },
     { id: 'history' as const, label: 'HISTORY', icon: '📈' },
   ]
 
@@ -679,6 +681,7 @@ export default function GymTracker() {
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {tab === 'log'     && <LogTab sessions={sessions} onFinish={handleFinish} />}
         {tab === 'tests'   && <TestsTab scores={scores} onLog={handleLogScore} />}
+        {tab === 'body'    && <BodyMap />}
         {tab === 'history' && <HistoryTab sessions={sessions} />}
       </div>
 
