@@ -669,7 +669,7 @@ export default function GymTracker() {
   ]
 
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100dvh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <header className="page-header">
         <div className="page-header-left">
           <button className="back-btn" onClick={() => navigate('/')}>‹ Home</button>
@@ -678,7 +678,7 @@ export default function GymTracker() {
         <HeaderRight />
       </header>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: tab === 'body' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {tab === 'log'     && <LogTab sessions={sessions} onFinish={handleFinish} />}
         {tab === 'tests'   && <TestsTab scores={scores} onLog={handleLogScore} />}
         {tab === 'body'    && <BodyMap />}
