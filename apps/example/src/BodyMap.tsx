@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import Model from 'react-body-highlighter'
-import type { IMuscleStats, Muscle } from 'react-body-highlighter'
+import Body from 'react-muscle-highlighter'
+import type { ExtendedBodyPart, Slug } from 'react-muscle-highlighter'
 import { useTheme } from './ThemeContext'
 
 // ── Zone data ──────────────────────────────────────────────────
@@ -154,31 +154,31 @@ const ZONE_DATA: Record<string, ZoneData> = {
   },
 }
 
-// ── Muscle → zone mapping ──────────────────────────────────────
+// ── Slug → zone mapping ────────────────────────────────────────
 
-const MUSCLE_TO_ZONE: Partial<Record<Muscle, string>> = {
-  trapezius: 'traps',
+const SLUG_TO_ZONE: Partial<Record<Slug, string>> = {
+  trapezius:   'traps',
   'upper-back': 'upper-back',
   'lower-back': 'lower-back',
-  chest: 'chest',
-  biceps: 'upper-arms',
-  triceps: 'upper-arms',
-  forearm: 'forearms',
-  'back-deltoids': 'shoulders',
-  'front-deltoids': 'shoulders',
-  abs: 'core',
-  obliques: 'core',
-  adductor: 'adductors',
-  abductors: 'glutes',
-  hamstring: 'hamstrings',
-  quadriceps: 'quads',
-  calves: 'calves',
-  'left-soleus': 'calves',
-  'right-soleus': 'calves',
-  gluteal: 'glutes',
-  head: 'neck',
-  neck: 'neck',
-  knees: 'knees',
+  chest:        'chest',
+  biceps:       'upper-arms',
+  triceps:      'upper-arms',
+  forearm:      'forearms',
+  hands:        'forearms',
+  deltoids:     'shoulders',
+  abs:          'core',
+  obliques:     'core',
+  adductors:    'adductors',
+  gluteal:      'glutes',
+  hamstring:    'hamstrings',
+  quadriceps:   'quads',
+  calves:       'calves',
+  tibialis:     'calves',
+  ankles:       'calves',
+  feet:         'calves',
+  head:         'neck',
+  neck:         'neck',
+  knees:        'knees',
 }
 
 // ── Zone detail (inline panel, not modal) ──────────────────────
@@ -246,29 +246,32 @@ function ZoneDetail({ data, onClose }: { data: ZoneData; onClose: () => void }) 
 
 export default function BodyMap() {
   const { theme } = useTheme()
-  const [view, setView] = useState<'anterior' | 'posterior'>('anterior')
-  const [selectedMuscle, setSelectedMuscle] = useState<Muscle | null>(null)
+  const [view, setView] = useState<'front' | 'back'>('front')
+  const [selectedSlug, setSelectedSlug] = useState<Slug | null>(null)
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
 
   const isDark = theme === 'dark'
   const bodyColor   = isDark ? '#152535' : '#c8dae8'
+  const strokeColor = isDark ? '#2a4a66' : '#a0c0d8'
   const accentColor = isDark ? '#7eb8d4' : '#2a78b8'
   const hasSelection = !!activeZoneId
 
-  const handleClick = ({ muscle }: IMuscleStats) => {
-    const zoneId = MUSCLE_TO_ZONE[muscle]
+  const handlePress = (bodyPart: ExtendedBodyPart) => {
+    const slug = bodyPart.slug
+    if (!slug) return
+    const zoneId = SLUG_TO_ZONE[slug]
     if (!zoneId) return
-    if (selectedMuscle === muscle) {
-      setSelectedMuscle(null); setActiveZoneId(null)
+    if (selectedSlug === slug) {
+      setSelectedSlug(null); setActiveZoneId(null)
     } else {
-      setSelectedMuscle(muscle); setActiveZoneId(zoneId)
+      setSelectedSlug(slug); setActiveZoneId(zoneId)
     }
   }
 
-  const close = () => { setSelectedMuscle(null); setActiveZoneId(null) }
+  const close = () => { setSelectedSlug(null); setActiveZoneId(null) }
 
-  const highlightData = selectedMuscle
-    ? [{ name: 'selected', muscles: [selectedMuscle] as Muscle[] }]
+  const highlightData: ExtendedBodyPart[] = selectedSlug
+    ? [{ slug: selectedSlug, color: accentColor }]
     : []
 
   return (
@@ -276,7 +279,7 @@ export default function BodyMap() {
 
       {/* Front / back toggle */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', padding: '0.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        {(['anterior', 'posterior'] as const).map(v => (
+        {(['front', 'back'] as const).map(v => (
           <button key={v} onClick={() => { setView(v); close() }} style={{
             padding: '0.3rem 1rem', fontSize: '0.7rem', letterSpacing: '0.08em',
             fontFamily: 'var(--font-mono)', fontWeight: view === v ? 700 : 400, cursor: 'pointer',
@@ -285,7 +288,7 @@ export default function BodyMap() {
             border: `1px solid ${view === v ? 'var(--accent)' : 'var(--border)'}`,
             borderRadius: 6,
           }}>
-            {v === 'anterior' ? 'FRONT' : 'BACK'}
+            {v.toUpperCase()}
           </button>
         ))}
       </div>
@@ -293,22 +296,24 @@ export default function BodyMap() {
       {/* Split layout */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
 
-        {/* Body figure pane — shrinks when selected */}
+        {/* Body figure — shrinks when selected */}
         <div style={{
           flexShrink: 0,
           width: hasSelection ? '42%' : '100%',
           transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden',
-          padding: hasSelection ? '0.25rem 0.25rem 0.5rem' : '0.5rem 1.5rem 0.5rem',
+          padding: hasSelection ? '0.25rem 0.25rem 0.5rem' : '0.5rem 2rem 0.5rem',
         }}>
-          <Model
+          <Body
             data={highlightData}
-            type={view}
-            bodyColor={bodyColor}
-            highlightedColors={[accentColor]}
-            onClick={handleClick}
-            style={{ width: '100%', maxWidth: hasSelection ? 150 : 240 }}
+            side={view}
+            gender="male"
+            defaultFill={bodyColor}
+            defaultStroke={strokeColor}
+            defaultStrokeWidth={0.8}
+            onBodyPartPress={handlePress}
+            scale={hasSelection ? 0.75 : 1.1}
           />
           <p style={{ fontSize: '0.6rem', color: hasSelection ? accentColor : 'var(--muted-hi)', letterSpacing: '0.05em', marginTop: '0.3rem', textAlign: 'center' }}>
             {hasSelection && activeZoneId
