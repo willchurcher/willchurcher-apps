@@ -15,6 +15,7 @@ import CppFlashcardsV2 from './CppFlashcardsV2'
 import CppNotes from './CppNotes'
 import ClaudeUsage from './ClaudeUsage'
 import MusicPlanner from './MusicPlanner'
+import GymTracker from './GymTracker'
 import { HeaderRight } from './HeaderRight'
 
 // ── App registry ────────────────────────────────────────────
@@ -31,6 +32,7 @@ const APP_LIST = [
   { name: 'C++ Notes',   path: '/cpp-notes',    icon: '📝', gradient: 'linear-gradient(145deg, #1a2a4a, #0a1020)' },
   { name: 'Claude Usage', path: '/claude-usage', icon: '◈', gradient: 'linear-gradient(145deg, #3a2a5a, #1a0a3a)' },
   { name: 'Music',        path: '/music',        icon: '♫', gradient: 'linear-gradient(145deg, #1a3a2a, #0a1a10)' },
+  { name: 'Gym',          path: '/gym',           icon: '🏋', gradient: 'linear-gradient(145deg, #3a1a1a, #1a0808)' },
 ]
 
 // ── Shared page shell ────────────────────────────────────────
@@ -347,6 +349,7 @@ function AppContent() {
         <Route path="/cpp-notes"    element={<CppNotes />} />
         <Route path="/claude-usage" element={<ClaudeUsage />} />
         <Route path="/music"        element={<MusicPlanner />} />
+        <Route path="/gym"          element={<GymTracker />} />
       </Routes>
     </BrowserRouter>
   )
