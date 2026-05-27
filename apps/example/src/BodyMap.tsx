@@ -3,6 +3,8 @@ import Body from 'react-muscle-highlighter'
 import type { ExtendedBodyPart, Slug } from 'react-muscle-highlighter'
 import { useTheme } from './ThemeContext'
 
+type Layer = 'muscles' | 'joints' | 'tendons' | 'fascia'
+
 // ── Zone data ──────────────────────────────────────────────────
 
 interface ZoneData {
@@ -118,7 +120,7 @@ const ZONE_DATA: Record<string, ZoneData> = {
     joints: ['Glenohumeral joint', 'Thoracolumbar fascia'],
     tendons: ['Lat insertion (intertubercular groove)'],
     strength: ['Pull-up', 'Lat pulldown', 'Straight-arm pulldown', 'Single-arm row'],
-    mobility: ['Wall shoulder flexion', 'Doorway lat stretch', 'Child\'s pose'],
+    mobility: ['Wall shoulder flexion', 'Doorway lat stretch', "Child's pose"],
   },
   'lower-back': {
     id: 'lower-back', name: 'Lower Back',
@@ -126,7 +128,7 @@ const ZONE_DATA: Record<string, ZoneData> = {
     joints: ['Lumbar spine (L1–L5)', 'Sacroiliac joint'],
     tendons: ['Thoracolumbar fascia'],
     strength: ['Deadlift', 'Good morning', 'Back extension', 'Bird-dog'],
-    mobility: ['Jefferson curl (light)', 'Child\'s pose', 'Cat-cow'],
+    mobility: ["Jefferson curl (light)", "Child's pose", 'Cat-cow'],
   },
   glutes: {
     id: 'glutes', name: 'Glutes',
@@ -154,10 +156,10 @@ const ZONE_DATA: Record<string, ZoneData> = {
   },
 }
 
-// ── Slug → zone mapping ────────────────────────────────────────
+// ── Slug ↔ zone mappings ───────────────────────────────────────
 
 const SLUG_TO_ZONE: Partial<Record<Slug, string>> = {
-  trapezius:   'traps',
+  trapezius:    'traps',
   'upper-back': 'upper-back',
   'lower-back': 'lower-back',
   chest:        'chest',
@@ -181,7 +183,104 @@ const SLUG_TO_ZONE: Partial<Record<Slug, string>> = {
   knees:        'knees',
 }
 
-// ── Zone detail (inline panel, not modal) ──────────────────────
+const ZONE_TO_SLUGS: Partial<Record<string, Slug[]>> = {
+  traps:        ['trapezius'],
+  'upper-back': ['upper-back'],
+  'lower-back': ['lower-back'],
+  chest:        ['chest'],
+  'upper-arms': ['biceps', 'triceps'],
+  forearms:     ['forearm', 'hands'],
+  shoulders:    ['deltoids'],
+  core:         ['abs', 'obliques'],
+  adductors:    ['adductors'],
+  glutes:       ['gluteal'],
+  hamstrings:   ['hamstring'],
+  quads:        ['quadriceps'],
+  calves:       ['calves', 'tibialis', 'ankles', 'feet'],
+  neck:         ['head', 'neck'],
+  knees:        ['knees'],
+}
+
+// ── Health colours ─────────────────────────────────────────────
+
+const HEALTH_COLORS = ['#f87171', '#fb923c', '#facc15', '#86efac', '#4ade80']
+
+function scoreColor(s: number): string {
+  if (s >= 4.5) return '#4ade80'
+  if (s >= 3.5) return '#86efac'
+  if (s >= 2.5) return '#facc15'
+  if (s >= 1.5) return '#fb923c'
+  return '#f87171'
+}
+
+// ── Anatomy overlay data ───────────────────────────────────────
+// SVG viewBox: front = "0 0 724 1448", back = "724 0 724 1448"
+// Body is rendered at 200*scale × 400*scale px
+
+interface JointDef {
+  id: string
+  name: string
+  zoneId?: string
+  front?: [number, number][]
+  back?: [number, number][]
+}
+
+const JOINTS: JointDef[] = [
+  { id: 'cervical',          name: 'Cervical spine',     zoneId: 'neck',        front: [[362, 195]],                    back: [[1086, 195]] },
+  { id: 'glenohumeral',      name: 'Glenohumeral',       zoneId: 'shoulders',   front: [[175, 315], [552, 315]],        back: [[899, 315], [1276, 315]] },
+  { id: 'acromioclavicular', name: 'Acromioclavicular',  zoneId: 'shoulders',   front: [[168, 293], [558, 293]],        back: [[892, 293], [1282, 293]] },
+  { id: 'elbow',             name: 'Elbow',              zoneId: 'upper-arms',  front: [[142, 508], [585, 508]],        back: [[866, 508], [1309, 508]] },
+  { id: 'wrist',             name: 'Wrist',              zoneId: 'forearms',    front: [[112, 715], [615, 715]],        back: [[836, 715], [1339, 715]] },
+  { id: 'hip',               name: 'Hip',                zoneId: 'hip-flexors', front: [[252, 660], [474, 660]],        back: [[976, 660], [1198, 660]] },
+  { id: 'sacroiliac',        name: 'Sacroiliac',         zoneId: 'lower-back',                                          back: [[1010, 664], [1162, 664]] },
+  { id: 'patellofemoral',    name: 'Patellofemoral',     zoneId: 'knees',       front: [[252, 933], [474, 933]] },
+  { id: 'tibiofemoral',      name: 'Tibiofemoral',       zoneId: 'knees',       front: [[252, 968], [474, 968]],        back: [[976, 968], [1198, 968]] },
+  { id: 'talocrural',        name: 'Ankle',              zoneId: 'calves',      front: [[256, 1195], [470, 1195]],      back: [[980, 1195], [1194, 1195]] },
+  { id: 'subtalar',          name: 'Subtalar',           zoneId: 'calves',      front: [[256, 1220], [470, 1220]],      back: [[980, 1220], [1194, 1220]] },
+]
+
+interface TendonDef {
+  id: string
+  front?: [number, number][][]
+  back?: [number, number][][]
+}
+
+const TENDONS: TendonDef[] = [
+  { id: 'achilles',      back:  [[[978, 1175], [978, 1252]], [[1194, 1175], [1194, 1252]]] },
+  { id: 'patellar',      front: [[[252, 936], [252, 990]], [[474, 936], [474, 990]]] },
+  { id: 'itband',        front: [[[210, 658], [222, 955]], [[505, 658], [494, 955]]] },
+  { id: 'prox-ham',      back:  [[[976, 645], [976, 682]], [[1198, 645], [1198, 682]]] },
+  { id: 'supraspinatus', back:  [[[900, 298], [942, 318]], [[1272, 298], [1232, 318]]] },
+  { id: 'acl-mcl',       front: [[[238, 940], [262, 990]], [[486, 940], [462, 990]]] },
+  { id: 'plantar',       back:  [[[956, 1265], [978, 1348]], [[1170, 1265], [1192, 1348]]] },
+]
+
+interface FasciaDef {
+  id: string
+  color: string
+  front?: string
+  back?: string
+}
+
+const FASCIA_ZONES: FasciaDef[] = [
+  {
+    id: 'itband',
+    color: '#60a5fa',
+    front: 'M 205 660 L 228 660 L 235 958 L 212 958 Z  M 498 660 L 520 660 L 514 958 L 491 958 Z',
+  },
+  {
+    id: 'thoracolumbar',
+    color: '#f59e0b',
+    back: 'M 904 582 L 1268 582 L 1255 728 L 917 728 Z',
+  },
+  {
+    id: 'plantar',
+    color: '#a855f7',
+    back: 'M 955 1262 L 1004 1262 L 1006 1352 Q 985 1368 964 1352 Z  M 1170 1262 L 1219 1262 L 1221 1352 Q 1200 1368 1179 1352 Z',
+  },
+]
+
+// ── Zone detail panel ──────────────────────────────────────────
 
 function Group({ title, items }: { title: string; items: string[] }) {
   return (
@@ -197,23 +296,25 @@ function Group({ title, items }: { title: string; items: string[] }) {
   )
 }
 
-function ZoneDetail({ data, onClose }: { data: ZoneData; onClose: () => void }) {
-  const [section, setSection] = useState<'muscles' | 'exercises' | 'mobility'>('muscles')
-  const COLORS = { muscles: '#7eb8d4', exercises: '#4ade80', mobility: '#fb923c' }
+function ZoneDetail({ data, score, onClose }: { data: ZoneData; score?: number; onClose: () => void }) {
+  const [section, setSection] = useState<'anatomy' | 'strength' | 'mobility'>('anatomy')
+  const COLORS = { anatomy: '#7eb8d4', strength: '#4ade80', mobility: '#fb923c' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.65rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0.65rem', borderBottom: '1px solid var(--border)', flexShrink: 0, gap: '0.5rem' }}>
         <span style={{ flex: 1, fontSize: '0.75rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
           {data.name.toUpperCase()}
         </span>
+        {score !== undefined
+          ? <span style={{ fontSize: '0.72rem', fontWeight: 700, color: scoreColor(score), fontFamily: 'var(--font-mono)' }}>{score.toFixed(1)}/5</span>
+          : <span style={{ fontSize: '0.62rem', color: 'var(--muted-hi)', fontFamily: 'var(--font-mono)' }}>not tested</span>
+        }
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted-hi)', fontSize: '1rem', cursor: 'pointer', padding: '0.15rem 0.3rem', lineHeight: 1 }}>✕</button>
       </div>
 
-      {/* Sub-tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        {(['muscles', 'exercises', 'mobility'] as const).map(s => (
+        {(['anatomy', 'strength', 'mobility'] as const).map(s => (
           <button key={s} onClick={() => setSection(s)} style={{
             flex: 1, padding: '0.38rem 0.2rem', fontSize: '0.58rem', letterSpacing: '0.06em',
             fontFamily: 'var(--font-mono)', background: 'none', border: 'none', cursor: 'pointer',
@@ -221,34 +322,58 @@ function ZoneDetail({ data, onClose }: { data: ZoneData; onClose: () => void }) 
             borderBottom: `2px solid ${section === s ? COLORS[s] : 'transparent'}`,
             marginBottom: -1,
           }}>
-            {s === 'exercises' ? 'STRENGTH' : s.toUpperCase()}
+            {s.toUpperCase()}
           </button>
         ))}
       </div>
 
-      {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 0.75rem 1rem' }}>
-        {section === 'muscles' && (
+        {section === 'anatomy' && (
           <>
             <Group title="MUSCLES" items={data.muscles} />
             {data.joints.length > 0 && <Group title="JOINTS" items={data.joints} />}
-            {data.tendons.length > 0 && <Group title="TENDONS" items={data.tendons} />}
+            {data.tendons.length > 0 && <Group title="TENDONS & LIGAMENTS" items={data.tendons} />}
           </>
         )}
-        {section === 'exercises' && <Group title="STRENGTH EXERCISES" items={data.strength} />}
+        {section === 'strength'  && <Group title="STRENGTH EXERCISES" items={data.strength} />}
         {section === 'mobility'  && <Group title="MOBILITY & STRETCHING" items={data.mobility} />}
       </div>
     </div>
   )
 }
 
+// ── Layer toggle config ────────────────────────────────────────
+
+const LAYER_COLORS: Record<Layer, string> = {
+  muscles: '#86efac',
+  joints:  '#7eb8d4',
+  tendons: '#fb923c',
+  fascia:  '#c084fc',
+}
+
+const LAYER_LABELS: Record<Layer, string> = {
+  muscles: 'MUSCLE',
+  joints:  'JOINT',
+  tendons: 'TEND',
+  fascia:  'FASCIA',
+}
+
+function loadLayers(): Set<Layer> {
+  try {
+    const raw = localStorage.getItem('gym-tracker:layers')
+    if (raw) return new Set<Layer>(JSON.parse(raw) as Layer[])
+  } catch { /* ignore */ }
+  return new Set<Layer>(['muscles'])
+}
+
 // ── Main BodyMap ───────────────────────────────────────────────
 
-export default function BodyMap() {
+export default function BodyMap({ zoneScores }: { zoneScores: Record<string, number> }) {
   const { theme } = useTheme()
   const [view, setView] = useState<'front' | 'back'>('front')
   const [selectedSlug, setSelectedSlug] = useState<Slug | null>(null)
   const [activeZoneId, setActiveZoneId] = useState<string | null>(null)
+  const [layers, setLayers] = useState<Set<Layer>>(loadLayers)
 
   const isDark = theme === 'dark'
   const bodyColor   = isDark ? '#152535' : '#c8dae8'
@@ -256,47 +381,82 @@ export default function BodyMap() {
   const accentColor = isDark ? '#7eb8d4' : '#2a78b8'
   const hasSelection = !!activeZoneId
 
+  const toggleLayer = (l: Layer) => {
+    setLayers(prev => {
+      const next = new Set(prev)
+      if (next.has(l)) { next.delete(l) } else { next.add(l) }
+      try { localStorage.setItem('gym-tracker:layers', JSON.stringify([...next])) } catch { /* ignore */ }
+      return next
+    })
+  }
+
   const handlePress = (bodyPart: ExtendedBodyPart) => {
     const slug = bodyPart.slug
     if (!slug) return
     const zoneId = SLUG_TO_ZONE[slug]
     if (!zoneId) return
-    if (selectedSlug === slug) {
-      setSelectedSlug(null); setActiveZoneId(null)
-    } else {
-      setSelectedSlug(slug); setActiveZoneId(zoneId)
-    }
+    if (selectedSlug === slug) { setSelectedSlug(null); setActiveZoneId(null) }
+    else { setSelectedSlug(slug); setActiveZoneId(zoneId) }
   }
 
   const close = () => { setSelectedSlug(null); setActiveZoneId(null) }
 
-  const highlightData: ExtendedBodyPart[] = selectedSlug
-    ? [{ slug: selectedSlug, color: accentColor }]
-    : []
+  // Muscle-layer highlight data: health colours + selected accent
+  const highlightData: ExtendedBodyPart[] = []
+  if (layers.has('muscles')) {
+    for (const [zoneId, score] of Object.entries(zoneScores)) {
+      for (const slug of (ZONE_TO_SLUGS[zoneId] ?? [])) {
+        if (slug !== selectedSlug) {
+          highlightData.push({ slug, intensity: Math.max(0, Math.min(4, Math.round(score) - 1)) })
+        }
+      }
+    }
+  }
+  if (selectedSlug) highlightData.push({ slug: selectedSlug, color: accentColor })
+
+  const scale = hasSelection ? 0.75 : 1.1
+  const showOverlay = layers.has('joints') || layers.has('tendons') || layers.has('fascia')
+  const vb = view === 'front' ? '0 0 724 1448' : '724 0 724 1448'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      {/* Front / back toggle */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', padding: '0.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      {/* Controls: front/back + layer toggles */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.65rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         {(['front', 'back'] as const).map(v => (
           <button key={v} onClick={() => { setView(v); close() }} style={{
-            padding: '0.3rem 1rem', fontSize: '0.7rem', letterSpacing: '0.08em',
+            padding: '0.22rem 0.65rem', fontSize: '0.62rem', letterSpacing: '0.08em',
             fontFamily: 'var(--font-mono)', fontWeight: view === v ? 700 : 400, cursor: 'pointer',
             background: view === v ? 'var(--accent)' : 'var(--surface)',
             color: view === v ? 'var(--accent-fg)' : 'var(--text2)',
-            border: `1px solid ${view === v ? 'var(--accent)' : 'var(--border)'}`,
-            borderRadius: 6,
+            border: `1px solid ${view === v ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 6,
           }}>
             {v.toUpperCase()}
           </button>
         ))}
+
+        <div style={{ width: 1, height: 18, background: 'var(--border)', flexShrink: 0, margin: '0 0.15rem' }} />
+
+        {(['muscles', 'joints', 'tendons', 'fascia'] as Layer[]).map(l => {
+          const on = layers.has(l)
+          return (
+            <button key={l} onClick={() => toggleLayer(l)} style={{
+              padding: '0.22rem 0.55rem', fontSize: '0.6rem', letterSpacing: '0.06em',
+              fontFamily: 'var(--font-mono)', cursor: 'pointer', borderRadius: 6,
+              background: on ? `${LAYER_COLORS[l]}22` : 'transparent',
+              color: on ? LAYER_COLORS[l] : 'var(--muted-hi)',
+              border: `1px solid ${on ? LAYER_COLORS[l] : 'var(--border)'}`,
+            }}>
+              {LAYER_LABELS[l]}
+            </button>
+          )
+        })}
       </div>
 
       {/* Split layout */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
 
-        {/* Body figure — shrinks when selected */}
+        {/* Body figure pane */}
         <div style={{
           flexShrink: 0,
           width: hasSelection ? '42%' : '100%',
@@ -305,16 +465,58 @@ export default function BodyMap() {
           overflow: 'hidden',
           padding: hasSelection ? '0.25rem 0.25rem 0.5rem' : '0.5rem 2rem 0.5rem',
         }}>
-          <Body
-            data={highlightData}
-            side={view}
-            gender="male"
-            defaultFill={bodyColor}
-            defaultStroke={strokeColor}
-            defaultStrokeWidth={0.8}
-            onBodyPartPress={handlePress}
-            scale={hasSelection ? 0.75 : 1.1}
-          />
+          {/* Wrapper for overlay alignment */}
+          <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+            <Body
+              data={highlightData}
+              colors={HEALTH_COLORS}
+              side={view}
+              gender="male"
+              defaultFill={bodyColor}
+              defaultStroke={strokeColor}
+              defaultStrokeWidth={0.8}
+              onBodyPartPress={handlePress}
+              scale={scale}
+            />
+
+            {showOverlay && (
+              <svg
+                viewBox={vb}
+                preserveAspectRatio="xMidYMid meet"
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+              >
+                {/* Fascia layer — translucent region shapes */}
+                {layers.has('fascia') && FASCIA_ZONES.map(f => {
+                  const d = view === 'front' ? f.front : f.back
+                  if (!d) return null
+                  return <path key={f.id} d={d} fill={f.color} fillOpacity={0.22} stroke={f.color} strokeWidth={3} strokeOpacity={0.55} />
+                })}
+
+                {/* Tendon layer — lines at key anatomical positions */}
+                {layers.has('tendons') && TENDONS.map(t => {
+                  const segs = view === 'front' ? t.front : t.back
+                  if (!segs) return null
+                  return segs.map(([[x1, y1], [x2, y2]], i) => (
+                    <line key={`${t.id}-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke="#fb923c" strokeWidth={9} strokeLinecap="round" opacity={0.82} />
+                  ))
+                })}
+
+                {/* Joint layer — coloured circles */}
+                {layers.has('joints') && JOINTS.map(j => {
+                  const pts = view === 'front' ? j.front : j.back
+                  if (!pts) return null
+                  const score = j.zoneId ? zoneScores[j.zoneId] : undefined
+                  const fill = score !== undefined ? scoreColor(score) : '#7eb8d4'
+                  return pts.map(([cx, cy], i) => (
+                    <circle key={`${j.id}-${i}`} cx={cx} cy={cy} r={16}
+                      fill={fill} fillOpacity={0.88} stroke="rgba(255,255,255,0.4)" strokeWidth={3} />
+                  ))
+                })}
+              </svg>
+            )}
+          </div>
+
           <p style={{ fontSize: '0.6rem', color: hasSelection ? accentColor : 'var(--muted-hi)', letterSpacing: '0.05em', marginTop: '0.3rem', textAlign: 'center' }}>
             {hasSelection && activeZoneId
               ? ZONE_DATA[activeZoneId]?.name.toUpperCase()
@@ -322,7 +524,7 @@ export default function BodyMap() {
           </p>
         </div>
 
-        {/* Content pane — slides in */}
+        {/* Content pane — slides in on tap */}
         <div style={{
           flexShrink: 0,
           width: hasSelection ? '58%' : '0%',
@@ -332,7 +534,7 @@ export default function BodyMap() {
           background: 'var(--bg2)',
         }}>
           {activeZoneId && ZONE_DATA[activeZoneId] && (
-            <ZoneDetail data={ZONE_DATA[activeZoneId]} onClose={close} />
+            <ZoneDetail data={ZONE_DATA[activeZoneId]} score={zoneScores[activeZoneId]} onClose={close} />
           )}
         </div>
       </div>

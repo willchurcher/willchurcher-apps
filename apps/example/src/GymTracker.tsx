@@ -163,6 +163,51 @@ const EXERCISES: ExerciseDef[] = [
   { id: 'backward-walk', name: 'Backward treadmill walk', category: 'Prehab' },
 ]
 
+// ── Zone score computation ─────────────────────────────────────
+
+const MG_TO_ZONE: Record<string, string> = {
+  hamstrings:   'hamstrings',
+  adductors:    'adductors',
+  'glute-med':  'glutes',
+  ankles:       'calves',
+  knees:        'knees',
+  'hip-flexors': 'hip-flexors',
+  shoulders:    'shoulders',
+  core:         'core',
+  posterior:    'lower-back',
+  calves:       'calves',
+}
+
+function computeZoneScores(scores: TestScore[]): Record<string, number> {
+  const result: Record<string, number> = {}
+  const counts: Record<string, number> = {}
+  for (const mg of MUSCLE_GROUPS) {
+    const vals: number[] = []
+    for (const t of mg.tests) {
+      const sides = t.bilateral ? ['left', 'right'] as const : [undefined as undefined]
+      for (const side of sides) {
+        const entries = scores.filter(s => s.testId === t.id && (!side || s.side === side))
+        if (entries.length > 0) {
+          const latest = entries.reduce((a, b) => a.date > b.date ? a : b)
+          vals.push(latest.score)
+        }
+      }
+    }
+    if (vals.length > 0) {
+      const zoneId = MG_TO_ZONE[mg.id]
+      if (zoneId) {
+        const avg = vals.reduce((a, b) => a + b) / vals.length
+        result[zoneId] = (result[zoneId] ?? 0) + avg
+        counts[zoneId] = (counts[zoneId] ?? 0) + 1
+      }
+    }
+  }
+  for (const zoneId of Object.keys(result)) {
+    result[zoneId] /= counts[zoneId]
+  }
+  return result
+}
+
 // ── Helpers ────────────────────────────────────────────────────
 
 function rawToScore(value: number, benchmarks: [number, number, number, number]): Score {
@@ -681,7 +726,7 @@ export default function GymTracker() {
       <div style={{ flex: 1, overflowY: tab === 'body' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {tab === 'log'     && <LogTab sessions={sessions} onFinish={handleFinish} />}
         {tab === 'tests'   && <TestsTab scores={scores} onLog={handleLogScore} />}
-        {tab === 'body'    && <BodyMap />}
+        {tab === 'body'    && <BodyMap zoneScores={computeZoneScores(scores)} />}
         {tab === 'history' && <HistoryTab sessions={sessions} />}
       </div>
 
